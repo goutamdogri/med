@@ -1,0 +1,38 @@
+{
+  "started": "2026-08-22 13:14:44",
+  "steps": {
+    "build_dataset": {
+      "status": "done",
+      "secs": 0.8
+    },
+    "train_lgbm": {
+      "status": "done",
+      "secs": 176.3
+    },
+    "torch_models": {
+      "status": "skipped"
+    },
+    "ensemble": {
+      "status": "done",
+      "secs": 110.4
+    },
+    "replenishment": {
+      "status": "done",
+      "secs": 0.5
+    },
+    "allocation": {
+      "status": "done",
+      "secs": 0.5
+    },
+    "simulate": {
+      "status": "done",
+      "secs": 1.4
+    },
+    "alerts": {
+      "status": "done",
+      "secs": 38.2
+    }
+  },
+  "ok": true,
+  "finished": "2026-08-22 13:20:12"
+}

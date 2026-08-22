@@ -1,0 +1,16 @@
+pandas>=2.0
+numpy
+pyarrow
+scikit-learn
+lightgbm>=4.0
+statsmodels
+kagglehub
+torch
+neuralforecast
+transformers
+chronos-forecasting
+accelerate
+plotly
+streamlit
+matplotlib
+PyYAML

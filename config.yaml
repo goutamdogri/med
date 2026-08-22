@@ -1,0 +1,143 @@
+project:
+  seed: 42
+  as_of_date: "2019-01-15"
+  currency: INR
+  volume_scale: 250
+
+locations:
+  - id: DC_MUMBAI
+    name: Mumbai Metro DC
+    type: metro_dc
+    demand_share: 0.30
+  - id: DC_DELHI
+    name: Delhi Metro DC
+    type: metro_dc
+    demand_share: 0.26
+  - id: WH_NAGPUR
+    name: Nagpur Tier-2 WH
+    type: tier2_wh
+    demand_share: 0.10
+  - id: WH_INDORE
+    name: Indore Tier-2 WH
+    type: tier2_wh
+    demand_share: 0.09
+  - id: WH_COIMBATORE
+    name: Coimbatore Tier-2 WH
+    type: tier2_wh
+    demand_share: 0.11
+  - id: WH_LUCKNOW
+    name: Lucknow Tier-2 WH
+    type: tier2_wh
+    demand_share: 0.14
+
+capacity_headroom_target: 0.78
+
+flu_season:
+  peak_month_day: "01-15"
+  sigma_days: 38
+  lead_shift_days: 8
+  sensitive_atc: [R03, R06, N02BE, M01AE]
+  tier2_peak_uplift: 0.60
+  metro_peak_uplift: 0.20
+
+promos:
+  - id: PRM_WINTER
+    name: Winter Wellness Drive
+    start_mmdd: "12-15"
+    end_mmdd: "01-15"
+    uplift: 0.25
+    regions: [WH_NAGPUR, WH_LUCKNOW]
+  - id: PRM_MONSOON
+    name: Monsoon Immunity Camp
+    start_mmdd: "06-20"
+    end_mmdd: "07-20"
+    uplift: 0.20
+    regions: [DC_MUMBAI, WH_COIMBATORE]
+  - id: PRM_DIWALI
+    name: Diwali Health Check
+    start_mmdd: "10-05"
+    end_mmdd: "11-05"
+    uplift: 0.15
+    regions: ALL
+  - id: PRM_SPRING
+    name: Spring Allergy Awareness
+    start_mmdd: "03-10"
+    end_mmdd: "04-10"
+    uplift: 0.18
+    regions: [DC_DELHI, WH_INDORE]
+
+sku:
+  brands:
+    M01AB: [Inflamac, JointEase, Rheumatol, Voltral-X]
+    M01AE: [Ibuprol, Profenac, FlexOn, Nuroflam]
+    N02BA: [Aspiriva, Salicylex, PainGuard, CardioA]
+    N02BE: [Paracetex, Febridol, Pyrexin, Calpoliv]
+    N05B: [Calmotin, Anxirelax, Sedavor, Zenobrom]
+    N05C: [Somnira, Hypnorest, Dormival, Noctura]
+    R03: [Ventorex, BronchoCalm, Asthaliv, RespiFlow]
+    R06: [Histavan, AllerStop, Cetrezil, RhinoCure]
+  criticality:
+    M01AB: standard
+    M01AE: high
+    N02BA: standard
+    N02BE: critical
+    N05B: standard
+    N05C: low
+    R03: critical
+    R06: high
+  cost_range_inr:
+    M01AB: [12, 28]
+    M01AE: [10, 22]
+    N02BA: [6, 15]
+    N02BE: [5, 14]
+    N05B: [25, 60]
+    N05C: [40, 95]
+    R03: [140, 320]
+    R06: [9, 24]
+  shelf_life_days:
+    default: [540, 730]
+    R03: [900, 1095]
+    N05C: [700, 910]
+
+lanes:
+  supplier_to_metro_lead_days: [9, 13]
+  supplier_to_tier2_lead_days: [16, 21]
+  transfers:
+    - {from: DC_MUMBAI, to: WH_NAGPUR, lead_days: 2}
+    - {from: DC_MUMBAI, to: WH_INDORE, lead_days: 3}
+    - {from: DC_MUMBAI, to: WH_COIMBATORE, lead_days: 4}
+    - {from: DC_DELHI, to: WH_LUCKNOW, lead_days: 2}
+    - {from: DC_DELHI, to: WH_NAGPUR, lead_days: 4}
+
+distributors:
+  order_cycle_days_range: [3, 8]
+  size_noise_sigma: 0.25
+
+inventory:
+  healthy_cover_days: [25, 45]
+  batches_per_location: [2, 4]
+  expiry_horizon_days: [120, 540]
+  metro_slow_atc: [N02BA, N05B, N05C, M01AB]
+  metro_slow_cover_days: [90, 140]
+  metro_slow_expiry_days: [26, 70]
+  tier2_critical_atc: [R03, N02BE]
+  tier2_critical_cover_days: [2, 12]
+
+service_levels:
+  critical: 0.99
+  high: 0.95
+  standard: 0.90
+  low: 0.85
+
+review_policy:
+  standard_cadence_days: 7
+  surge_trigger_sensed_uplift: 0.20
+  surge_cadence_days: 1
+  escalation:
+    red_stock_days: 3
+    amber_stock_days: 7
+    transfer_approval_value_inr: 200000
+
+simulation:
+  horizon_days: 42
+  status_quo_fifo_blind: true

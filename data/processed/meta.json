@@ -1,0 +1,8 @@
+as_of_date: '2019-01-15'
+history_end: '2019-10-08'
+history_start: '2014-01-02'
+inventory_value_inr: 30159053
+n_demand_rows: 404352
+n_locations: 6
+n_skus: 32
+near_expiry_batches: 96
