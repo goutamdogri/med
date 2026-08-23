@@ -1,3 +1,3 @@
 policy,fill_rate_pct,critical_fill_rate_pct,stockout_units,critical_stockout_sitedays,writeoff_value_inr,avg_ending_inventory
-proposed,91.8,90.38,90523,87,774193,2477.0
-status_quo,81.56,75.52,203682,234,2163566,3062.0
+proposed,92.5,89.73,76038,72,1150512,2673.0
+status_quo,83.45,77.21,167674,242,2943641,3063.0

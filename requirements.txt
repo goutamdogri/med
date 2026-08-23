@@ -14,3 +14,5 @@ plotly
 streamlit
 matplotlib
 PyYAML
+SQLAlchemy>=2.0
+pymysql

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from features import CFG, PROCESSED, load_tables  # noqa: E402
@@ -66,8 +65,7 @@ def shortage_rescue_transfers(inv, repl, mu):
 
 
 def build_allocation_plan() -> tuple[pd.DataFrame, pd.DataFrame]:
-    meta = yaml.safe_load((PROCESSED / "meta.json").read_text())
-    as_of = pd.Timestamp(meta["as_of_date"])
+    as_of = pd.Timestamp(CFG["project"]["as_of_date"])
     tables = load_tables()
     inv = tables["inventory_batches"]
     lanes = tables["lanes"]
@@ -221,6 +219,17 @@ def main():
     transfers, writeoffs, _ = build_allocation_plan()
     transfers.to_parquet(PROCESSED / "transfer_plan.parquet", index=False)
     writeoffs.to_parquet(PROCESSED / "writeoff_risk.parquet", index=False)
+
+    # dual-write: push plans to MySQL OUTPUT tables
+    try:
+        sys.path.insert(0, str(ROOT / "db"))
+        import outputs as db_out
+
+        as_of = db_out.current_as_of()
+        db_out.write_transfer_plan(transfers, as_of)
+        db_out.write_writeoff_risk(writeoffs, as_of)
+    except Exception as exc:
+        print(f"[allocation] MySQL write skipped: {type(exc).__name__}: {exc}")
 
     print(f"transfers planned: {len(transfers)} | units moved: {transfers.qty_units.sum():,.0f}")
     print(f"value rescued: ₹{transfers.value_saved_inr.sum():,.0f}")

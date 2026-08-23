@@ -10,8 +10,6 @@ import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from features import CFG, PROCESSED, load_tables  # noqa: E402
 
@@ -19,6 +17,38 @@ ROOT = Path(__file__).resolve().parents[1]
 HORIZON = CFG["simulation"]["horizon_days"]
 REVIEW_CADENCE = CFG["review_policy"]["standard_cadence_days"]
 Z_VALUES = {0.99: 2.326, 0.95: 1.645, 0.90: 1.282, 0.85: 1.036}
+
+
+def load_inputs():
+    tables = load_tables()
+    as_of = pd.Timestamp(CFG["project"]["as_of_date"])
+    horizon_dates = pd.date_range(as_of + pd.Timedelta(days=int(1)), periods=HORIZON)
+    actuals = tables["demand_history"]
+    actuals = actuals[actuals["date"].isin(horizon_dates)]
+
+    # Live-ops fallback: days without revealed actuals get ensemble p50 as
+    # scenario demand (identical for both policies -> fair comparison).
+    missing = horizon_dates.difference(pd.DatetimeIndex(actuals["date"].unique()))
+    if len(missing):
+        fcst_path = PROCESSED / "forecasts_final.parquet"
+        if fcst_path.exists():
+            fcst = pd.read_parquet(fcst_path)
+            scen = fcst[fcst["forecast_date"].isin(missing)][
+                ["sku_id", "region", "forecast_date", "p50"]
+            ].rename(columns={"forecast_date": "date", "p50": "units"})
+            scen["atc_code"] = ""
+            keep_cols = ["date", "sku_id", "atc_code", "region", "units"]
+            base = actuals[[c for c in keep_cols if c in actuals.columns]].copy()
+            actuals = pd.concat(
+                [base, scen[[c for c in keep_cols if c in scen.columns]]],
+                ignore_index=True,
+            )
+            print(f"[simulate] {len(missing)}/{HORIZON} horizon days lack actuals "
+                  f"-> ensemble p50 scenario demand")
+
+    skus = tables["sku_master"].set_index("sku_id")
+    lanes = tables["lanes"]
+    return tables, as_of, horizon_dates, actuals, skus, lanes
 
 
 @dataclass
@@ -32,18 +62,6 @@ class Batch:
 @dataclass
 class SiteState:
     batches: dict[str, list[Batch]] = field(default_factory=dict)
-
-
-def load_inputs():
-    tables = load_tables()
-    meta = yaml.safe_load((PROCESSED / "meta.json").read_text())
-    as_of = pd.Timestamp(meta["as_of_date"])
-    horizon_dates = pd.date_range(as_of + pd.Timedelta(days=int(1)), periods=HORIZON)
-    actuals = tables["demand_history"]
-    actuals = actuals[actuals["date"].isin(horizon_dates)]
-    skus = tables["sku_master"].set_index("sku_id")
-    lanes = tables["lanes"]
-    return tables, meta, as_of, horizon_dates, actuals, skus, lanes
 
 
 def initial_sites(inv: pd.DataFrame) -> tuple[dict[str, dict[str, list[Batch]]], int]:
@@ -99,7 +117,7 @@ def total_on_hand(sites, loc, sku):
 
 
 def simulate(policy: str):
-    tables, meta, as_of, horizon_dates, actuals, skus, lanes = load_inputs()
+    tables, as_of, horizon_dates, actuals, skus, lanes = load_inputs()
     inv = tables["inventory_batches"]
     sites, seq_counter = initial_sites(inv)
 
@@ -280,6 +298,16 @@ def main():
 
     k = kpis(sim)
     k.to_csv(PROCESSED / "kpi_summary.csv", index=False)
+
+    # dual-write: push simulation + KPIs to MySQL OUTPUT tables
+    try:
+        sys.path.insert(0, str(ROOT / "db"))
+        import outputs as db_out
+
+        db_out.write_simulation(sim, k, db_out.current_as_of())
+    except Exception as exc:
+        print(f"[simulate] MySQL write skipped: {type(exc).__name__}: {exc}")
+
     print(k.to_string(index=False))
 
 

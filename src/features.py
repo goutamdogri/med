@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +12,7 @@ PROCESSED = ROOT / "data" / "processed"
 CFG = yaml.safe_load((ROOT / "config.yaml").read_text())
 
 
-def load_tables() -> dict[str, pd.DataFrame]:
+def _load_tables_parquet() -> dict[str, pd.DataFrame]:
     tables = {}
     for name in [
         "demand_history",
@@ -27,6 +28,22 @@ def load_tables() -> dict[str, pd.DataFrame]:
         if path.exists():
             tables[name] = pd.read_parquet(path)
     return tables
+
+
+def load_tables() -> dict[str, pd.DataFrame]:
+    """Primary source: MySQL pharma_sc INPUT/INPUT-ROLLING tables.
+    Falls back to data/processed parquet when the DB is unreachable."""
+    try:
+        sys.path.insert(0, str(ROOT / "db"))
+        from inputs import load_tables_from_db  # noqa: E402
+
+        tables = load_tables_from_db()
+        n = len(tables.get("demand_history", pd.DataFrame()))
+        print(f"[features] inputs loaded from MySQL ({n} demand rows)")
+        return tables
+    except Exception as exc:  # pragma: no cover - operational fallback
+        print(f"[features] MySQL unavailable ({type(exc).__name__}); falling back to parquet")
+        return _load_tables_parquet()
 
 
 def build_promo_grid(dates: pd.DatetimeIndex) -> pd.DataFrame:
@@ -85,6 +102,35 @@ def build_panel(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
     panel["is_tier2"] = (panel["type"] == "tier2_wh").astype(int)
 
     return panel
+
+
+def build_covariates(tables: dict[str, pd.DataFrame], panel: pd.DataFrame) -> pd.DataFrame:
+    """Region × day covariate grid covering demand history AND future dates with
+    published flu readings (surveillance data arrives ahead of internal sales)."""
+    dmax = panel["date"].max()
+    flu = tables.get("flu_index")
+    if flu is not None and len(flu):
+        fmax = pd.to_datetime(flu["date"]).max()
+        if pd.notna(fmax) and fmax > dmax:
+            dmax = fmax
+    dates = pd.date_range(panel["date"].min(), dmax, freq="D")
+    regions = sorted(panel["region"].unique())
+    grid = pd.MultiIndex.from_product(
+        [dates, regions], names=["date", "region"]
+    ).to_frame(index=False)
+    if flu is not None and len(flu):
+        f = pd.DataFrame({
+            "date": pd.to_datetime(flu["date"]),
+            "region": flu["region"],
+            "flu_index": flu["flu_index"],
+        }).drop_duplicates(["date", "region"])
+        grid = grid.merge(f, on=["date", "region"], how="left")
+    else:
+        grid["flu_index"] = np.nan
+    promo_grid = build_promo_grid(dates)
+    grid = grid.merge(promo_grid, on=["date", "region"], how="left")
+    grid["promo_uplift"] = grid["promo_uplift"].fillna(0.0)
+    return grid
 
 
 HORIZONS = list(range(1, CFG['simulation']['horizon_days'] + 1))
@@ -153,7 +199,9 @@ FEATURES = [
 ]
 
 
-def melt_horizons(supervised: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame:
+def melt_horizons(supervised: pd.DataFrame, panel: pd.DataFrame,
+                  require_target: bool = True,
+                  cov: pd.DataFrame | None = None) -> pd.DataFrame:
     pieces = []
     static = [
         "lag_1",
@@ -169,7 +217,8 @@ def melt_horizons(supervised: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame
         "is_tier2",
         "demand_share",
     ]
-    cov = panel[["region", "date", "flu_index", "promo_uplift"]].drop_duplicates()
+    if cov is None:
+        cov = panel[["region", "date", "flu_index", "promo_uplift"]].drop_duplicates()
     for h in HORIZONS:
         piece = supervised[static].copy()
         piece.insert(0, "horizon", h)
@@ -197,6 +246,7 @@ def melt_horizons(supervised: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame
         )
         pieces.append(piece)
     out = pd.concat(pieces, ignore_index=True)
-    return out.dropna(subset=["target", "forecast_date", "futr_flu_index"]).reset_index(
-        drop=True
-    )
+    subset = ["forecast_date", "futr_flu_index"]
+    if require_target:
+        subset.insert(0, "target")
+    return out.dropna(subset=subset).reset_index(drop=True)

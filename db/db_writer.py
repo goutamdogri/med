@@ -2,11 +2,11 @@
 db_writer.py — Seeds all INPUT and INPUT-ROLLING tables from processed parquet files.
 
 Run this once after build_dataset.py to seed the DB with the full historical dataset.
-For daily rollover, only the rolling tables are appended (see --mode flag).
+DERIVED tables are filled separately by db/fill_derived.py (computed from MySQL).
 
 Usage:
     python db/db_writer.py --mode seed     # Full seed (run once)
-    python db/db_writer.py --mode rolling  # Append today's rolling data only
+    python db/db_writer.py --mode rolling  # Append latest snapshot rolling data only
 
 Requirements:
     pip install sqlalchemy pymysql pandas pyarrow
@@ -15,37 +15,26 @@ Requirements:
 from __future__ import annotations
 
 import argparse
-import os
 import sys
-from datetime import date
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import yaml
-from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from connection import DB_NAME, get_engine, insert_df  # noqa: E402
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = ROOT / "data" / "processed"
 CFG = yaml.safe_load((ROOT / "config.yaml").read_text())
 
-# ─── DB Connection ─────────────────────────────────────────────────────────────
-# Set via env var or change the default below
-DB_URL = os.environ.get(
-    "PHARMA_DB_URL",
-    "mysql+pymysql://pharma_user:pharma_pass@localhost:3306/pharma_sc?charset=utf8mb4",
-)
 
-
-def get_engine():
-    return create_engine(DB_URL, pool_pre_ping=True)
-
-
-def write(df: pd.DataFrame, table: str, engine, if_exists: str = "append", chunk: int = 500):
-    """Write a DataFrame to MySQL, skipping duplicate key errors gracefully."""
-    df.to_sql(table, con=engine, if_exists=if_exists, index=False, method="multi", chunksize=chunk)
-    print(f"  ✓ {table:<35} {len(df):>6} rows written")
+def write(df: pd.DataFrame, table: str, engine: Engine, chunk: int = 500):
+    """Append a DataFrame to MySQL (INPUT/rolling tables; no unique-key conflicts on fresh seed)."""
+    return insert_df(df, table, chunk=chunk)
 
 
 # ─── Enrichment helpers ────────────────────────────────────────────────────────
@@ -215,18 +204,30 @@ def seed_promo_calendar(engine):
     write(df, "promo_calendar", engine)
 
 
-def seed_demand_history(engine):
-    """[INPUT-ROLLING] Write demand_history from demand_history.parquet"""
+def seed_demand_history(engine, full_history: bool = False):
+    """[INPUT-ROLLING] Write demand_history from demand_history.parquet.
+    By default only days up to config as_of_date are loaded — later days are
+    revealed one at a time by simulate_ingest_day.py (production: real ingest)."""
     df = pd.read_parquet(PROCESSED / "demand_history.parquet")
+    if not full_history:
+        wm = pd.Timestamp(CFG["project"]["as_of_date"])
+        n0 = len(df)
+        df = df[pd.to_datetime(df["date"]) <= wm]
+        print(f"  · trimmed to watermark {wm.date()} ({n0 - len(df)} future rows withheld)")
     df["ingested_at"] = pd.Timestamp.now()
     write(df, "demand_history", engine)
 
 
-def seed_disease_burden_index(engine):
+def seed_disease_burden_index(engine, full_history: bool = True):
     """[INPUT-ROLLING] Write disease_burden_index from flu_index.parquet.
     Renames flu_index → index_value and adds realistic source metadata.
+    NOT watermarked: public surveillance data is published ahead of internal
+    sales and is required as a future covariate (futr_flu_index) by the model.
     """
     df = pd.read_parquet(PROCESSED / "flu_index.parquet")
+    if not full_history:
+        wm = pd.Timestamp(CFG["project"]["as_of_date"])
+        df = df[pd.to_datetime(df["date"]) <= wm]
     df = df.rename(columns={"flu_index": "index_value", "date": "record_date"})
     df["index_type"]      = "ili"
     df["source"]          = "IDSP_State_Surveillance"
@@ -248,102 +249,6 @@ def seed_inventory_batches(engine):
         lambda b: f"GRN-{int(b[1:]) + 10000:05d}-{meta['as_of_date'].replace('-', '')}"
     )
     write(df, "inventory_batches", engine)
-
-
-def seed_sku_market_share_monthly(engine):
-    """[DERIVED] Compute monthly market share per SKU from demand_history.
-    Replaces the static category_share that was in sku_master.
-    """
-    df = pd.read_parquet(PROCESSED / "demand_history.parquet")
-    df["date"] = pd.to_datetime(df["date"])
-    df["period_year"]  = df["date"].dt.year
-    df["period_month"] = df["date"].dt.month
-
-    sku_monthly = (
-        df.groupby(["sku_id", "atc_code", "period_year", "period_month"])["units"]
-        .sum()
-        .reset_index()
-        .rename(columns={"units": "total_units_sold"})
-    )
-    cat_monthly = (
-        df.groupby(["atc_code", "period_year", "period_month"])["units"]
-        .sum()
-        .reset_index()
-        .rename(columns={"units": "category_units_sold"})
-    )
-    result = sku_monthly.merge(cat_monthly, on=["atc_code", "period_year", "period_month"])
-    result["market_share"] = (
-        result["total_units_sold"] / result["category_units_sold"].replace(0, np.nan)
-    ).round(4)
-    result["computed_on"] = date.today().isoformat()
-    write(result, "sku_market_share_monthly", engine)
-
-
-def seed_location_demand_summary(engine):
-    """[DERIVED] Compute quarterly regional demand share from demand_history.
-    Replaces the static demand_share that was in locations.
-    """
-    df = pd.read_parquet(PROCESSED / "demand_history.parquet")
-    df["date"] = pd.to_datetime(df["date"])
-    df["period_year"]    = df["date"].dt.year
-    df["period_quarter"] = df["date"].dt.quarter
-
-    loc_q = (
-        df.groupby(["region", "period_year", "period_quarter"])["units"]
-        .sum()
-        .reset_index()
-        .rename(columns={"region": "location_id", "units": "total_units"})
-    )
-    nat_q = (
-        df.groupby(["period_year", "period_quarter"])["units"]
-        .sum()
-        .reset_index()
-        .rename(columns={"units": "national_total"})
-    )
-    result = loc_q.merge(nat_q, on=["period_year", "period_quarter"])
-    result["national_share"] = (
-        result["total_units"] / result["national_total"].replace(0, np.nan)
-    ).round(4)
-
-    # YoY growth %
-    result = result.sort_values(["location_id", "period_year", "period_quarter"])
-    result["prev_units"] = result.groupby(["location_id", "period_quarter"])["total_units"].shift(1)
-    result["yoy_growth_pct"] = (
-        (result["total_units"] - result["prev_units"]) / result["prev_units"].replace(0, np.nan) * 100
-    ).round(2)
-    result = result.drop(columns=["national_total", "prev_units"])
-    result["computed_on"] = date.today().isoformat()
-    write(result, "location_demand_summary", engine)
-
-
-def seed_sku_cost_history(engine):
-    """[DERIVED] Generate realistic cost history per SKU with 2-3 cost changes over the years."""
-    sku_df = pd.read_parquet(PROCESSED / "sku_master.parquet")
-    rng = np.random.default_rng(seed=99)
-    rows = []
-
-    # Cost change milestones (business events)
-    cost_periods = [
-        ("2014-01-01", "2016-06-30", "Initial supplier onboarding price",    1.00),
-        ("2016-07-01", "2017-06-30", "Pre-GST price revision",               1.08),
-        ("2017-07-01", "2020-12-31", "Post-GST supplier renegotiation",      1.15),
-        ("2021-01-01", None,          "Annual renegotiation — COVID surcharge removed", 1.12),
-    ]
-
-    for _, sku in sku_df.iterrows():
-        base_cost = int(sku["unit_cost_inr"])
-        for eff_from, eff_to, reason, multiplier in cost_periods:
-            noise = rng.uniform(0.97, 1.03)
-            rows.append({
-                "sku_id":        sku["sku_id"],
-                "unit_cost_inr": max(1, int(round(base_cost * multiplier * noise))),
-                "effective_from": eff_from,
-                "effective_to":   eff_to,
-                "reason":         reason,
-                "approved_by":    "procurement@pharma.in",
-            })
-
-    write(pd.DataFrame(rows), "sku_cost_history", engine)
 
 
 def seed_distributor_orders(engine):
@@ -474,30 +379,28 @@ def seed_warehouse_capacity_log(engine):
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 SEED_FUNCTIONS = [
+    # (table, seeder, truncate_first) — seed mode is a full reload, so each
+    # target table is emptied first to keep reruns idempotent.
     # INPUT — static master tables (run once)
-    ("sku_master",                 seed_sku_master),
-    ("locations",                  seed_locations),
-    ("lanes",                      seed_lanes),
-    ("distributors",               seed_distributors),
-    ("promo_calendar",             seed_promo_calendar),
+    ("sku_master",                 seed_sku_master,            True),
+    ("locations",                  seed_locations,             True),
+    ("lanes",                      seed_lanes,                 True),
+    ("distributors",               seed_distributors,          True),
+    ("promo_calendar",             seed_promo_calendar,        True),
     # INPUT-ROLLING — grows over time
-    ("demand_history",             seed_demand_history),
-    ("disease_burden_index",       seed_disease_burden_index),
-    ("inventory_batches",          seed_inventory_batches),
-    # DERIVED — computed from demand_history
-    ("sku_market_share_monthly",   seed_sku_market_share_monthly),
-    ("location_demand_summary",    seed_location_demand_summary),
-    ("sku_cost_history",           seed_sku_cost_history),
-    ("distributor_orders",         seed_distributor_orders),
-    ("warehouse_capacity_log",     seed_warehouse_capacity_log),
+    ("demand_history",             seed_demand_history,        True),
+    ("disease_burden_index",       seed_disease_burden_index,  True),
+    ("inventory_batches",          seed_inventory_batches,     True),
+    ("distributor_orders",         seed_distributor_orders,    True),
+    # weekly capacity snapshots (historical + latest)
+    ("warehouse_capacity_log",     seed_warehouse_capacity_log, True),
 ]
 
 ROLLING_FUNCTIONS = [
-    # Only these are appended daily
-    ("demand_history",       seed_demand_history),
-    ("disease_burden_index", seed_disease_burden_index),
-    ("inventory_batches",    seed_inventory_batches),
-    ("warehouse_capacity_log", seed_warehouse_capacity_log),
+    # Only these are appended when new data arrives
+    ("demand_history",       seed_demand_history,       False),
+    ("disease_burden_index", seed_disease_burden_index, False),
+    ("inventory_batches",    seed_inventory_batches,    False),
 ]
 
 
@@ -507,21 +410,33 @@ def main():
         "--mode",
         choices=["seed", "rolling"],
         default="seed",
-        help="seed = full initial load | rolling = append today's rolling data only",
+        help="seed = full initial load | rolling = append latest rolling data only",
+    )
+    parser.add_argument(
+        "--full-history", action="store_true",
+        help="load demand/flu history beyond the as-of watermark (disables day-reveal demo)",
     )
     args = parser.parse_args()
 
     engine = get_engine()
     print(f"\n{'='*55}")
     print(f"  Mode: {args.mode.upper()}")
-    print(f"  DB:   {DB_URL.split('@')[-1]}")
+    print(f"  DB:   {DB_NAME} @ {engine.url.host}:{engine.url.port}")
     print(f"{'='*55}\n")
 
     functions = SEED_FUNCTIONS if args.mode == "seed" else ROLLING_FUNCTIONS
 
-    for table_name, fn in functions:
+    import inspect
+    from sqlalchemy import text
+
+    for table_name, fn, truncate in functions:
         try:
-            fn(engine)
+            if truncate:
+                with engine.begin() as conn:
+                    conn.execute(text(f"TRUNCATE TABLE {table_name}"))
+            params = inspect.signature(fn).parameters
+            kw = {"full_history": args.full_history} if "full_history" in params else {}
+            fn(engine, **kw)
         except Exception as e:
             print(f"  ✗ {table_name:<35} ERROR: {e}")
             sys.exit(1)

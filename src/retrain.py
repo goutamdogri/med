@@ -8,12 +8,16 @@ import sys
 import time
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = ROOT / "data" / "processed"
 PY = sys.executable
 
+# Monthly retrain trains on whatever demand_history currently holds in MySQL
+# (backend-fed). build_dataset.py is only needed to regenerate the synthetic
+# demo dataset from the raw Kaggle CSV — use --rebuild-data for that.
 STEPS = [
-    ("build_dataset", [PY, str(ROOT / "src" / "build_dataset.py")]),
     ("train_lgbm", [PY, str(ROOT / "src" / "train_lgbm.py")]),
     ("torch_models", [PY, str(ROOT / "src" / "torch_models.py")]),
     ("ensemble", [PY, str(ROOT / "src" / "ensemble.py")]),
@@ -23,14 +27,45 @@ STEPS = [
     ("alerts", [PY, str(ROOT / "src" / "alerts.py")]),
 ]
 
+BUILD_STEP = ("build_dataset", [PY, str(ROOT / "src" / "build_dataset.py")])
 
-def run_pipeline(skip_torch: bool = False) -> dict:
+
+def set_as_of_to_latest_demand() -> str | None:
+    """Point config.yaml at the newest ingested day so every stage shares one origin."""
+    sys.path.insert(0, str(ROOT / "db"))
+    from connection import scalar  # noqa: E402
+
+    try:
+        latest = scalar("SELECT MAX(date) FROM demand_history")
+    except Exception:
+        return None
+    if latest is None:
+        return None
+    cfg_path = ROOT / "config.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text())
+    prev = cfg["project"]["as_of_date"]
+    cfg["project"]["as_of_date"] = str(pd_ts(latest))
+    cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    print(f"[retrain] as-of {prev} -> {cfg['project']['as_of_date']}")
+    return prev
+
+
+def pd_ts(d) -> str:
+    import pandas as pd
+
+    return pd.Timestamp(d).date().isoformat()
+
+
+def run_pipeline(skip_torch: bool = False, rebuild_data: bool = False) -> dict:
     backup = PROCESSED.parent / f"processed_backup_{time.strftime('%Y%m%d_%H%M%S')}"
     shutil.copytree(PROCESSED, backup)
 
+    steps = ([BUILD_STEP] if rebuild_data else []) + STEPS
     log = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "steps": {}, "ok": True}
     try:
-        for name, cmd in STEPS:
+        if not rebuild_data:
+            set_as_of_to_latest_demand()
+        for name, cmd in steps:
             if skip_torch and name == "torch_models":
                 log["steps"][name] = {"status": "skipped"}
                 print(f"[retrain] SKIP {name} (existing forecasts reused if fresh)")
@@ -44,6 +79,16 @@ def run_pipeline(skip_torch: bool = False) -> dict:
                 log["ok"] = False
                 raise RuntimeError(f"{name} failed after {dt}s")
             log["steps"][name] = {"status": "done", "secs": dt}
+        # refresh [DERIVED] tables from the accumulated MySQL data
+        t0 = time.time()
+        r = subprocess.run([PY, str(ROOT / "db" / "fill_derived.py")], cwd=ROOT)
+        dt = round(time.time() - t0, 1)
+        name = "fill_derived"
+        if r.returncode != 0:
+            log["steps"][name] = {"status": "failed", "secs": dt}
+            log["ok"] = False
+            raise RuntimeError(f"{name} failed after {dt}s")
+        log["steps"][name] = {"status": "done", "secs": dt}
     except Exception as exc:
         print(f"\n[retrain] FAILED: {exc}")
         print(f"[retrain] rolling back processed artifacts from {backup.name}")
@@ -61,10 +106,12 @@ def run_pipeline(skip_torch: bool = False) -> dict:
 
 
 def main():
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Monthly model retrain (MySQL-backed)")
     ap.add_argument("--skip-torch", action="store_true", help="reuse existing NN forecasts")
+    ap.add_argument("--rebuild-data", action="store_true",
+                    help="regenerate synthetic dataset from raw CSV first (demo reset)")
     args = ap.parse_args()
-    log = run_pipeline(skip_torch=args.skip_torch)
+    log = run_pipeline(skip_torch=args.skip_torch, rebuild_data=args.rebuild_data)
     sys.exit(0 if log["ok"] else 1)
 
 

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from features import CFG, FEATURES, HORIZONS, PROCESSED, build_panel, load_tables, make_supervised, melt_horizons  # noqa: E402
+from features import CFG, FEATURES, HORIZONS, PROCESSED, build_covariates, build_panel, load_tables, make_supervised, melt_horizons  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = ROOT / "models"
@@ -34,14 +34,15 @@ def wmape(y_true, y_pred):
     return float(np.abs(y_true - y_pred).sum() / denom) if denom else np.nan
 
 
-def lgbm_forecasts(panel, as_of):
+def lgbm_forecasts(panel, as_of, tables=None):
     sup7 = make_supervised(panel, stride=7)
     melted_train = melt_horizons(sup7, panel)
     train = melted_train[melted_train["cutoff_date"] <= as_of]
 
+    cov = build_covariates(tables, panel) if tables else None
     sup_all = make_supervised(panel, stride=1)
     inf_sup = sup_all[sup_all["date"] == as_of]
-    infer = melt_horizons(inf_sup, panel)
+    infer = melt_horizons(inf_sup, panel, require_target=False, cov=cov)
 
     preds = {}
     for tag, params in [
@@ -235,7 +236,22 @@ def main():
     )
     truth = np.array([actual.get(k, np.nan) for k in keys], dtype=float)
     mask = ~np.isnan(truth)
-    print("ENSEMBLE WMAPE @ as-of origin:", round(wmape(truth[mask], merged.loc[mask, "p50"]), 4))
+    realized_wmape = wmape(truth[mask], merged.loc[mask, "p50"])
+    print("ENSEMBLE WMAPE @ as-of origin:", round(realized_wmape, 4))
+
+    # dual-write: push forecasts to MySQL OUTPUT tables
+    try:
+        sys.path.insert(0, str(ROOT / "db"))
+        import outputs as db_out
+
+        prev_cfg = None
+        db_out.write_forecasts(merged, as_of, models_used, weights)
+        db_out.write_run_log(
+            as_of, prev_cfg, models_used, weights, realized_wmape,
+            len(merged), triggered_by="retrain",
+        )
+    except Exception as exc:
+        print(f"[ensemble] MySQL write skipped: {type(exc).__name__}: {exc}")
 
 
 if __name__ == "__main__":

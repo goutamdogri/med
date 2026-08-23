@@ -78,6 +78,81 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/streamlit run app/streamlit_app.py
 ```
 
+## MySQL-backed operations (production mode)
+
+All pipeline inputs are read from the **`pharma_sc`** MySQL database and every
+output is dual-written to parquet (dashboard) **and** dedicated `[OUTPUT]`
+tables. The backend inserts new daily rows directly into
+`demand_history`, `disease_burden_index`, `inventory_batches` — no file drops needed.
+
+### One-time setup
+
+```bash
+.venv/bin/pip install pymysql
+MYSQL_ROOT_PWD=<root-password> ./db/setup_db.sh          # creates schema + pharma_user
+cp .env.example .env                                     # then edit credentials
+.venv/bin/python db/db_writer.py --mode seed             # load history up to as-of watermark
+.venv/bin/python db/fill_derived.py --full               # compute [DERIVED] tables from MySQL
+```
+
+Connection is configured via `PHARMA_DB_URL` (env var or `.env`, git-ignored).
+If MySQL is unreachable the pipeline automatically falls back to `data/processed/` parquet files.
+
+### Daily rollover forecast (cron)
+
+```bash
+./scripts/daily_roll.sh
+# equivalent manual steps:
+.venv/bin/python db/simulate_ingest_day.py               # demo only — backend does this in prod
+.venv/bin/python src/rolling_forecast.py --full-chain --triggered-by cron
+.venv/bin/python db/fill_derived.py
+```
+
+One command regenerates the day's forecast → replenishment → transfers →
+simulation → alerts, writing to `forecasts_final`, `replenishment_orders`,
+`transfer_plan`, `writeoff_risk`, `simulation_daily`, `kpi_summary`, `alerts`,
+`alert_digest` and the `rolling_run_log` audit trail — all stamped with today's
+`as_of_date`. Reruns for the same date overwrite cleanly (idempotent).
+
+Suggested crontab:
+
+```cron
+0 6 * * *  cd /path/to/med && ./scripts/daily_roll.sh >> logs/daily.log 2>&1
+0 2 1 * *  cd /path/to/med && ./scripts/monthly_retrain.sh >> logs/monthly.log 2>&1
+```
+
+### Monthly retraining
+
+```bash
+./scripts/monthly_retrain.sh            # trains on ALL demand_history in MySQL
+# fast variant:  .venv/bin/python src/retrain.py --skip-torch
+# demo reset:    .venv/bin/python src/retrain.py --rebuild-data   # regenerate synthetic data from raw CSV
+```
+
+The retrain sets the pipeline origin to the newest ingested day, retrains
+LightGBM + neural models, recomputes ensemble weights, reruns the full output
+chain, and refreshes the derived analytics tables (`sku_market_share_monthly`,
+`location_demand_summary`, …). Every stage reads its training data straight
+from MySQL, so a month of backend-fed rows is picked up with zero extra work.
+
+### Derived-table refresh intervals
+
+`db/fill_derived.py` is idempotent — safe at any cadence:
+
+| Table | Cadence | Notes |
+|---|---|---|
+| `sku_market_share_monthly` | daily (cheap full recompute) | pruned to ingested date range |
+| `location_demand_summary` | daily | quarterly share + YoY |
+| `warehouse_capacity_log` | weekly snapshot auto-inserts when ≥7 days of new inventory exist | |
+| `sku_cost_history` | seeded once; `--full` regenerates | |
+
+### Demo day simulator
+
+`db/simulate_ingest_day.py` reveals one more day from the pre-generated history
+(watermarked seed leaves ~8 months unrevealed): appends sales, ILI readings,
+and an FEFO-depleted inventory snapshot — standing in for the production
+backend so the cron demonstrably advances day by day.
+
 ### Bring your own data
 
 No retraining is needed to *present* — the dashboard reads saved artifacts. To plan on **your own sales history**, use the **📥 Data & Retrain** dashboard page (or CLI):

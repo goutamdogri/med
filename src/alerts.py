@@ -105,7 +105,8 @@ def review_cadence_recommendation(alerts: list[dict]) -> dict:
     }
 
 
-def gemma_digest(alerts: list[dict], kpis: dict, cadence: dict) -> str:
+def gemma_digest(alerts: list[dict], kpis: dict, cadence: dict) -> tuple[str, str]:
+    """Returns (digest_text, model_used)."""
     facts = {
         "kpi_summary": kpis,
         "review_mode": cadence,
@@ -144,7 +145,7 @@ def gemma_digest(alerts: list[dict], kpis: dict, cadence: dict) -> str:
             out = json.loads(resp.read())
         text = str(out.get("message", {}).get("content", "")).strip()
         if len(text) > 80:
-            return text
+            return text, OLLAMA_MODEL
     except Exception as e:
         print(f"gemma unavailable ({e}); using template digest")
     red = [a for a in alerts if a["severity"] == "RED"]
@@ -155,7 +156,7 @@ def gemma_digest(alerts: list[dict], kpis: dict, cadence: dict) -> str:
         "Expiry program: execute markdown/donation for residual near-expiry batches.",
         "Cadence: weekly S&OP; escalate listed regions to daily review.",
     ]
-    return "\n".join(lines)
+    return "\n".join(lines), "template_fallback"
 
 
 def main():
@@ -166,11 +167,25 @@ def main():
 
     alerts = build_alerts()
     cadence = review_cadence_recommendation(alerts)
-    digest = gemma_digest(alerts, kpis, cadence)
+    digest, model_used = gemma_digest(alerts, kpis, cadence)
 
     payload = {"alerts": alerts, "review_cadence": cadence}
     (PROCESSED / "alerts.json").write_text(json.dumps(payload, indent=2, default=str))
     (PROCESSED / "alert_digest.md").write_text(digest)
+
+    # dual-write: push alerts + AI digest to MySQL OUTPUT tables
+    try:
+        sys.path.insert(0, str(ROOT / "db"))
+        import outputs as db_out
+
+        db_out.write_alerts(
+            alerts, digest_text=digest, review_mode=cadence["mode"],
+            surge_regions=cadence["surge_regions"], red_count=cadence["red_alerts"],
+            model_used=model_used, as_of_date=db_out.current_as_of(),
+        )
+    except Exception as exc:
+        print(f"[alerts] MySQL write skipped: {type(exc).__name__}: {exc}")
+
     print(f"alerts: {len(alerts)} | mode: {cadence['mode']} | surge regions: {cadence['surge_regions']}")
     print("\n--- Gemma digest ---")
     print(digest)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -132,12 +133,16 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", type=str, default=None, help="forecast origin YYYY-MM-DD; default = last date in demand history")
     ap.add_argument("--restore-demo", action="store_true", help="restore demo forecasts taken before a rolling run")
+    ap.add_argument("--full-chain", action="store_true",
+                    help="after forecasting, regenerate replenishment/transfers/simulation/alerts")
+    ap.add_argument("--triggered-by", type=str, default="manual", choices=["cron", "manual", "api"])
     args = ap.parse_args()
 
     if args.restore_demo:
         restore_demo()
         return
 
+    t_start = time.time()
     tables = load_tables()
     demand_max = tables["demand_history"]["date"].max()
     as_of = pd.Timestamp(args.date) if args.date else demand_max
@@ -149,7 +154,7 @@ def main():
     from ensemble import apply_sensing, lgbm_forecasts, sensing_factors, wmape
 
     panel = build_panel(tables)
-    lgbm_f = lgbm_forecasts(panel, as_of).rename(
+    lgbm_f = lgbm_forecasts(panel, as_of, tables).rename(
         columns={"p10_lgbm": "lgbm_p10_tmp", "p50_lgbm": "lgbm_p50", "p90_lgbm": "lgbm_p90_tmp"}
     )
 
@@ -205,16 +210,49 @@ def main():
     keys = list(zip(merged["sku_id"], merged["region"], pd.DatetimeIndex(merged["forecast_date"])))
     truth = np.array([actual.get(k, np.nan) for k in keys], dtype=float)
     mask = ~np.isnan(truth)
+    realized_wmape = None
     if mask.any():
-        print(f"realized WMAPE vs actuals: {wmape(truth[mask], merged.loc[mask, 'p50']):.4f}")
+        realized_wmape = wmape(truth[mask], merged.loc[mask, "p50"])
+        print(f"realized WMAPE vs actuals: {realized_wmape:.4f}")
     else:
         print("no actuals beyond origin yet (normal in live ops)")
+
+    # dual-write: push forecasts + run audit row to MySQL
+    try:
+        sys.path.insert(0, str(ROOT / "db"))
+        import outputs as db_out
+
+        db_out.write_forecasts(merged, as_of, sorted(weights), weights)
+        db_out.write_run_log(
+            as_of_date=as_of,
+            previous_as_of_date=prev_asof,
+            models_used=sorted(weights),
+            weights=weights,
+            wmape=realized_wmape,
+            forecast_rows=len(merged),
+            duration_s=int(time.time() - t_start),
+            triggered_by=args.triggered_by,
+        )
+    except Exception as exc:
+        print(f"[rolling] MySQL write skipped: {type(exc).__name__}: {exc}")
 
     top = (
         merged.groupby("atc_code")["sense_adjustment"].mean().sort_values().tail(4) * 100
     ).round(1)
     print("strongest sensed uplift by category:")
     print(top.astype(str).add("%").to_string())
+
+    if args.full_chain:
+        import subprocess
+
+        for step in ["replenishment.py", "allocation.py", "simulate.py", "alerts.py"]:
+            print(f"\n[full-chain] >>> {step} ...", flush=True)
+            r = subprocess.run(
+                [sys.executable, str(ROOT / "src" / step)], cwd=str(ROOT)
+            )
+            if r.returncode != 0:
+                raise SystemExit(f"full-chain failed at {step}")
+        print("\n[full-chain] complete: forecasts → replenishment → transfers → simulation → alerts")
 
 
 if __name__ == "__main__":

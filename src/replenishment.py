@@ -87,6 +87,16 @@ def build_replenishment_plan() -> tuple[pd.DataFrame, pd.DataFrame]:
 def main():
     plan, inv = build_replenishment_plan()
     plan.to_parquet(PROCESSED / "replenishment_orders.parquet", index=False)
+
+    # dual-write: push plan to MySQL OUTPUT table
+    try:
+        sys.path.insert(0, str(ROOT / "db"))
+        import outputs as db_out
+
+        db_out.write_replenishment(plan, db_out.current_as_of())
+    except Exception as exc:
+        print(f"[replenishment] MySQL write skipped: {type(exc).__name__}: {exc}")
+
     print(plan["status"].value_counts())
     print("\ntop orders by value:")
     print(

@@ -4,15 +4,29 @@
       "severity": "RED",
       "type": "shortage_risk",
       "sku_id": "N02BE-01",
+      "region": "WH_COIMBATORE",
+      "facts": {
+        "criticality": "critical",
+        "days_of_supply": 0.0,
+        "lead_time_days": 16,
+        "recommended_order_units": 23905,
+        "order_value_inr": 167333
+      },
+      "action": "Expedite replenishment of 23905 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "RED",
+      "type": "shortage_risk",
+      "sku_id": "N02BE-01",
       "region": "WH_INDORE",
       "facts": {
         "criticality": "critical",
         "days_of_supply": 0.0,
         "lead_time_days": 18,
-        "recommended_order_units": 19449,
-        "order_value_inr": 136141
+        "recommended_order_units": 20311,
+        "order_value_inr": 142177
       },
-      "action": "Expedite replenishment of 19449 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 20311 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -23,10 +37,10 @@
         "criticality": "critical",
         "days_of_supply": 0.0,
         "lead_time_days": 16,
-        "recommended_order_units": 22008,
-        "order_value_inr": 154055
+        "recommended_order_units": 21956,
+        "order_value_inr": 153690
       },
-      "action": "Expedite replenishment of 22008 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 21956 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -37,10 +51,10 @@
         "criticality": "critical",
         "days_of_supply": 0.0,
         "lead_time_days": 16,
-        "recommended_order_units": 13810,
-        "order_value_inr": 165722
+        "recommended_order_units": 13850,
+        "order_value_inr": 166201
       },
-      "action": "Expedite replenishment of 13810 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 13850 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -51,10 +65,24 @@
         "criticality": "critical",
         "days_of_supply": 0.0,
         "lead_time_days": 18,
-        "recommended_order_units": 12481,
-        "order_value_inr": 149773
+        "recommended_order_units": 13754,
+        "order_value_inr": 165053
       },
-      "action": "Expedite replenishment of 12481 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 13754 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "RED",
+      "type": "shortage_risk",
+      "sku_id": "R03-03",
+      "region": "WH_COIMBATORE",
+      "facts": {
+        "criticality": "critical",
+        "days_of_supply": 0.0,
+        "lead_time_days": 16,
+        "recommended_order_units": 2856,
+        "order_value_inr": 794052
+      },
+      "action": "Expedite replenishment of 2856 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -65,10 +93,24 @@
         "criticality": "critical",
         "days_of_supply": 0.0,
         "lead_time_days": 16,
-        "recommended_order_units": 4662,
-        "order_value_inr": 1295917
+        "recommended_order_units": 4385,
+        "order_value_inr": 1219168
       },
-      "action": "Expedite replenishment of 4662 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 4385 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "RED",
+      "type": "shortage_risk",
+      "sku_id": "R03-03",
+      "region": "WH_NAGPUR",
+      "facts": {
+        "criticality": "critical",
+        "days_of_supply": 0.0,
+        "lead_time_days": 16,
+        "recommended_order_units": 3030,
+        "order_value_inr": 842350
+      },
+      "action": "Expedite replenishment of 3030 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -79,80 +121,38 @@
         "criticality": "critical",
         "days_of_supply": 0.0,
         "lead_time_days": 16,
-        "recommended_order_units": 4226,
-        "order_value_inr": 1119915
+        "recommended_order_units": 3906,
+        "order_value_inr": 1035119
       },
-      "action": "Expedite replenishment of 4226 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 3906 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "RED",
+      "type": "shortage_risk",
+      "sku_id": "R03-04",
+      "region": "WH_COIMBATORE",
+      "facts": {
+        "criticality": "critical",
+        "days_of_supply": 0.2,
+        "lead_time_days": 16,
+        "recommended_order_units": 2603,
+        "order_value_inr": 689814
+      },
+      "action": "Expedite replenishment of 2603 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
       "type": "shortage_risk",
       "sku_id": "N02BE-01",
-      "region": "WH_COIMBATORE",
-      "facts": {
-        "criticality": "critical",
-        "days_of_supply": 1.8,
-        "lead_time_days": 16,
-        "recommended_order_units": 19927,
-        "order_value_inr": 139487
-      },
-      "action": "Expedite replenishment of 19927 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "RED",
-      "type": "shortage_risk",
-      "sku_id": "R03-03",
-      "region": "WH_COIMBATORE",
-      "facts": {
-        "criticality": "critical",
-        "days_of_supply": 2.2,
-        "lead_time_days": 16,
-        "recommended_order_units": 2761,
-        "order_value_inr": 767510
-      },
-      "action": "Expedite replenishment of 2761 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "RED",
-      "type": "shortage_risk",
-      "sku_id": "R03-03",
-      "region": "WH_NAGPUR",
-      "facts": {
-        "criticality": "critical",
-        "days_of_supply": 2.4,
-        "lead_time_days": 16,
-        "recommended_order_units": 2962,
-        "order_value_inr": 823526
-      },
-      "action": "Expedite replenishment of 2962 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
-      "type": "shortage_risk",
-      "sku_id": "N02BE-01",
       "region": "WH_LUCKNOW",
       "facts": {
         "criticality": "critical",
-        "days_of_supply": 4.2,
+        "days_of_supply": 1.4,
         "lead_time_days": 16,
-        "recommended_order_units": 24830,
-        "order_value_inr": 173813
+        "recommended_order_units": 29440,
+        "order_value_inr": 206083
       },
-      "action": "Expedite replenishment of 24830 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
-      "type": "shortage_risk",
-      "sku_id": "R03-04",
-      "region": "WH_COIMBATORE",
-      "facts": {
-        "criticality": "critical",
-        "days_of_supply": 4.3,
-        "lead_time_days": 16,
-        "recommended_order_units": 2355,
-        "order_value_inr": 624085
-      },
-      "action": "Expedite replenishment of 2355 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 29440 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
@@ -161,12 +161,12 @@
       "region": "WH_LUCKNOW",
       "facts": {
         "criticality": "critical",
-        "days_of_supply": 6.1,
+        "days_of_supply": 3.3,
         "lead_time_days": 16,
-        "recommended_order_units": 15102,
-        "order_value_inr": 181228
+        "recommended_order_units": 17990,
+        "order_value_inr": 215874
       },
-      "action": "Expedite replenishment of 15102 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 17990 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
@@ -175,12 +175,12 @@
       "region": "WH_INDORE",
       "facts": {
         "criticality": "critical",
-        "days_of_supply": 7.6,
+        "days_of_supply": 3.8,
         "lead_time_days": 18,
-        "recommended_order_units": 2192,
-        "order_value_inr": 609251
+        "recommended_order_units": 2461,
+        "order_value_inr": 684210
       },
-      "action": "Expedite replenishment of 2192 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 2461 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
@@ -189,12 +189,12 @@
       "region": "WH_NAGPUR",
       "facts": {
         "criticality": "critical",
-        "days_of_supply": 8.9,
+        "days_of_supply": 6.2,
         "lead_time_days": 16,
-        "recommended_order_units": 9453,
-        "order_value_inr": 113432
+        "recommended_order_units": 11204,
+        "order_value_inr": 134445
       },
-      "action": "Expedite replenishment of 9453 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 11204 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
@@ -203,12 +203,12 @@
       "region": "WH_INDORE",
       "facts": {
         "criticality": "critical",
-        "days_of_supply": 10.3,
+        "days_of_supply": 6.7,
         "lead_time_days": 18,
-        "recommended_order_units": 1831,
-        "order_value_inr": 485090
+        "recommended_order_units": 2095,
+        "order_value_inr": 555173
       },
-      "action": "Expedite replenishment of 1831 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 2095 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
@@ -217,12 +217,12 @@
       "region": "WH_NAGPUR",
       "facts": {
         "criticality": "critical",
-        "days_of_supply": 12.7,
+        "days_of_supply": 10.4,
         "lead_time_days": 16,
-        "recommended_order_units": 1854,
-        "order_value_inr": 491370
+        "recommended_order_units": 1834,
+        "order_value_inr": 486125
       },
-      "action": "Expedite replenishment of 1854 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 1834 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -233,10 +233,10 @@
         "criticality": "high",
         "days_of_supply": 0.0,
         "lead_time_days": 18,
-        "recommended_order_units": 3743,
-        "order_value_inr": 37434
+        "recommended_order_units": 4203,
+        "order_value_inr": 42026
       },
-      "action": "Expedite replenishment of 3743 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 4203 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -247,10 +247,10 @@
         "criticality": "high",
         "days_of_supply": 0.0,
         "lead_time_days": 16,
-        "recommended_order_units": 4161,
-        "order_value_inr": 41615
+        "recommended_order_units": 4453,
+        "order_value_inr": 44532
       },
-      "action": "Expedite replenishment of 4161 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 4453 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -261,10 +261,38 @@
         "criticality": "high",
         "days_of_supply": 0.0,
         "lead_time_days": 18,
-        "recommended_order_units": 6190,
-        "order_value_inr": 74285
+        "recommended_order_units": 6662,
+        "order_value_inr": 79949
       },
-      "action": "Expedite replenishment of 6190 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 6662 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "RED",
+      "type": "shortage_risk",
+      "sku_id": "N02BE-03",
+      "region": "WH_LUCKNOW",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 0.0,
+        "lead_time_days": 16,
+        "recommended_order_units": 10180,
+        "order_value_inr": 122159
+      },
+      "action": "Expedite replenishment of 10180 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "RED",
+      "type": "shortage_risk",
+      "sku_id": "N02BE-03",
+      "region": "WH_NAGPUR",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 0.0,
+        "lead_time_days": 16,
+        "recommended_order_units": 7285,
+        "order_value_inr": 87420
+      },
+      "action": "Expedite replenishment of 7285 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
@@ -275,178 +303,150 @@
         "criticality": "high",
         "days_of_supply": 0.0,
         "lead_time_days": 16,
-        "recommended_order_units": 1366,
-        "order_value_inr": 217261
+        "recommended_order_units": 1372,
+        "order_value_inr": 218221
       },
-      "action": "Expedite replenishment of 1366 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 1372 units; consider transfer from metro DC."
     },
     {
       "severity": "RED",
-      "type": "shortage_risk",
-      "sku_id": "N02BE-03",
-      "region": "WH_LUCKNOW",
-      "facts": {
-        "criticality": "high",
-        "days_of_supply": 2.0,
-        "lead_time_days": 16,
-        "recommended_order_units": 9058,
-        "order_value_inr": 108699
-      },
-      "action": "Expedite replenishment of 9058 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "RED",
-      "type": "shortage_risk",
-      "sku_id": "N02BE-03",
-      "region": "WH_NAGPUR",
-      "facts": {
-        "criticality": "high",
-        "days_of_supply": 2.1,
-        "lead_time_days": 16,
-        "recommended_order_units": 6103,
-        "order_value_inr": 73239
-      },
-      "action": "Expedite replenishment of 6103 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
       "type": "shortage_risk",
       "sku_id": "N02BE-02",
       "region": "WH_LUCKNOW",
       "facts": {
         "criticality": "high",
-        "days_of_supply": 3.1,
+        "days_of_supply": 0.7,
         "lead_time_days": 16,
-        "recommended_order_units": 5202,
-        "order_value_inr": 52018
+        "recommended_order_units": 6037,
+        "order_value_inr": 60374
       },
-      "action": "Expedite replenishment of 5202 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 6037 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "R03-02",
+      "region": "WH_COIMBATORE",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 3.5,
+        "lead_time_days": 16,
+        "recommended_order_units": 1226,
+        "order_value_inr": 194967
+      },
+      "action": "Expedite replenishment of 1226 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
       "type": "shortage_risk",
       "sku_id": "R03-01",
       "region": "WH_NAGPUR",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 3.7,
+        "lead_time_days": 16,
+        "recommended_order_units": 1743,
+        "order_value_inr": 348584
+      },
+      "action": "Expedite replenishment of 1743 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "R03-02",
+      "region": "WH_INDORE",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 5.4,
+        "lead_time_days": 18,
+        "recommended_order_units": 1054,
+        "order_value_inr": 167590
+      },
+      "action": "Expedite replenishment of 1054 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "N02BE-03",
+      "region": "WH_COIMBATORE",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 6.1,
+        "lead_time_days": 16,
+        "recommended_order_units": 5563,
+        "order_value_inr": 66754
+      },
+      "action": "Expedite replenishment of 5563 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "R03-02",
+      "region": "WH_LUCKNOW",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 6.1,
+        "lead_time_days": 16,
+        "recommended_order_units": 1497,
+        "order_value_inr": 237966
+      },
+      "action": "Expedite replenishment of 1497 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "N02BE-02",
+      "region": "WH_COIMBATORE",
       "facts": {
         "criticality": "high",
         "days_of_supply": 6.9,
         "lead_time_days": 16,
-        "recommended_order_units": 1592,
-        "order_value_inr": 318493
+        "recommended_order_units": 3176,
+        "order_value_inr": 31756
       },
-      "action": "Expedite replenishment of 1592 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 3176 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
       "type": "shortage_risk",
-      "sku_id": "R03-02",
-      "region": "WH_COIMBATORE",
-      "facts": {
-        "criticality": "high",
-        "days_of_supply": 7.4,
-        "lead_time_days": 16,
-        "recommended_order_units": 981,
-        "order_value_inr": 155993
-      },
-      "action": "Expedite replenishment of 981 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
-      "type": "shortage_risk",
-      "sku_id": "R03-02",
-      "region": "WH_LUCKNOW",
-      "facts": {
-        "criticality": "high",
-        "days_of_supply": 8.8,
-        "lead_time_days": 16,
-        "recommended_order_units": 1408,
-        "order_value_inr": 223804
-      },
-      "action": "Expedite replenishment of 1408 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
-      "type": "shortage_risk",
-      "sku_id": "N02BE-03",
-      "region": "WH_COIMBATORE",
-      "facts": {
-        "criticality": "high",
-        "days_of_supply": 9.1,
-        "lead_time_days": 16,
-        "recommended_order_units": 4461,
-        "order_value_inr": 53534
-      },
-      "action": "Expedite replenishment of 4461 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
-      "type": "shortage_risk",
-      "sku_id": "R03-02",
+      "sku_id": "R03-01",
       "region": "WH_INDORE",
       "facts": {
         "criticality": "high",
-        "days_of_supply": 9.7,
+        "days_of_supply": 7.4,
         "lead_time_days": 18,
-        "recommended_order_units": 830,
-        "order_value_inr": 131985
+        "recommended_order_units": 1386,
+        "order_value_inr": 277144
       },
-      "action": "Expedite replenishment of 830 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 1386 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
       "type": "shortage_risk",
-      "sku_id": "N02BE-02",
+      "sku_id": "R03-01",
       "region": "WH_COIMBATORE",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 8.2,
+        "lead_time_days": 16,
+        "recommended_order_units": 1443,
+        "order_value_inr": 288625
+      },
+      "action": "Expedite replenishment of 1443 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "R03-01",
+      "region": "WH_LUCKNOW",
       "facts": {
         "criticality": "high",
         "days_of_supply": 9.8,
         "lead_time_days": 16,
-        "recommended_order_units": 2591,
-        "order_value_inr": 25912
+        "recommended_order_units": 1771,
+        "order_value_inr": 354205
       },
-      "action": "Expedite replenishment of 2591 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
-      "type": "shortage_risk",
-      "sku_id": "R03-01",
-      "region": "WH_INDORE",
-      "facts": {
-        "criticality": "high",
-        "days_of_supply": 10.7,
-        "lead_time_days": 18,
-        "recommended_order_units": 1243,
-        "order_value_inr": 248674
-      },
-      "action": "Expedite replenishment of 1243 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
-      "type": "shortage_risk",
-      "sku_id": "R03-01",
-      "region": "WH_COIMBATORE",
-      "facts": {
-        "criticality": "high",
-        "days_of_supply": 11.6,
-        "lead_time_days": 16,
-        "recommended_order_units": 1253,
-        "order_value_inr": 250684
-      },
-      "action": "Expedite replenishment of 1253 units; consider transfer from metro DC."
-    },
-    {
-      "severity": "AMBER",
-      "type": "shortage_risk",
-      "sku_id": "R03-01",
-      "region": "WH_LUCKNOW",
-      "facts": {
-        "criticality": "high",
-        "days_of_supply": 12.8,
-        "lead_time_days": 16,
-        "recommended_order_units": 1646,
-        "order_value_inr": 329139
-      },
-      "action": "Expedite replenishment of 1646 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 1771 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
@@ -455,12 +455,12 @@
       "region": "WH_INDORE",
       "facts": {
         "criticality": "high",
-        "days_of_supply": 21.5,
+        "days_of_supply": 14.6,
         "lead_time_days": 18,
-        "recommended_order_units": 159,
-        "order_value_inr": 2232
+        "recommended_order_units": 300,
+        "order_value_inr": 4207
       },
-      "action": "Expedite replenishment of 159 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 300 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
@@ -469,12 +469,40 @@
       "region": "WH_INDORE",
       "facts": {
         "criticality": "high",
-        "days_of_supply": 23.0,
+        "days_of_supply": 14.7,
         "lead_time_days": 18,
-        "recommended_order_units": 114,
-        "order_value_inr": 2614
+        "recommended_order_units": 273,
+        "order_value_inr": 6272
       },
-      "action": "Expedite replenishment of 114 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 273 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "R06-02",
+      "region": "DC_MUMBAI",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 16.2,
+        "lead_time_days": 10,
+        "recommended_order_units": 241,
+        "order_value_inr": 5542
+      },
+      "action": "Expedite replenishment of 241 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "R06-03",
+      "region": "WH_COIMBATORE",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 17.0,
+        "lead_time_days": 16,
+        "recommended_order_units": 268,
+        "order_value_inr": 3749
+      },
+      "action": "Expedite replenishment of 268 units; consider transfer from metro DC."
     },
     {
       "severity": "AMBER",
@@ -483,12 +511,52 @@
       "region": "WH_INDORE",
       "facts": {
         "criticality": "high",
-        "days_of_supply": 24.9,
+        "days_of_supply": 21.7,
         "lead_time_days": 18,
-        "recommended_order_units": 213,
-        "order_value_inr": 3829
+        "recommended_order_units": 359,
+        "order_value_inr": 6463
       },
-      "action": "Expedite replenishment of 213 units; consider transfer from metro DC."
+      "action": "Expedite replenishment of 359 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "M01AE-03",
+      "region": "WH_LUCKNOW",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 22.1,
+        "lead_time_days": 16,
+        "recommended_order_units": 390,
+        "order_value_inr": 7018
+      },
+      "action": "Expedite replenishment of 390 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "shortage_risk",
+      "sku_id": "M01AE-01",
+      "region": "WH_INDORE",
+      "facts": {
+        "criticality": "high",
+        "days_of_supply": 23.3,
+        "lead_time_days": 18,
+        "recommended_order_units": 204,
+        "order_value_inr": 2043
+      },
+      "action": "Expedite replenishment of 204 units; consider transfer from metro DC."
+    },
+    {
+      "severity": "AMBER",
+      "type": "expiry_writeoff_risk",
+      "sku_id": "N05B-01",
+      "region": "DC_MUMBAI",
+      "facts": {
+        "units_at_risk": 3160,
+        "value_inr": 126436,
+        "days_to_expiry": 32
+      },
+      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
     },
     {
       "severity": "AMBER",
@@ -496,8 +564,20 @@
       "sku_id": "N05C-04",
       "region": "DC_MUMBAI",
       "facts": {
-        "units_at_risk": 1307,
-        "value_inr": 113737,
+        "units_at_risk": 1292,
+        "value_inr": 112471,
+        "days_to_expiry": 39
+      },
+      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
+    },
+    {
+      "severity": "AMBER",
+      "type": "expiry_writeoff_risk",
+      "sku_id": "N05C-01",
+      "region": "DC_MUMBAI",
+      "facts": {
+        "units_at_risk": 1047,
+        "value_inr": 98457,
         "days_to_expiry": 41
       },
       "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
@@ -506,59 +586,23 @@
       "severity": "AMBER",
       "type": "expiry_writeoff_risk",
       "sku_id": "N05C-01",
+      "region": "DC_DELHI",
+      "facts": {
+        "units_at_risk": 526,
+        "value_inr": 49465,
+        "days_to_expiry": 29
+      },
+      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
+    },
+    {
+      "severity": "AMBER",
+      "type": "expiry_writeoff_risk",
+      "sku_id": "N05C-03",
       "region": "DC_MUMBAI",
       "facts": {
-        "units_at_risk": 1099,
-        "value_inr": 103315,
-        "days_to_expiry": 43
-      },
-      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
-    },
-    {
-      "severity": "AMBER",
-      "type": "expiry_writeoff_risk",
-      "sku_id": "N05B-01",
-      "region": "DC_MUMBAI",
-      "facts": {
-        "units_at_risk": 1729,
-        "value_inr": 69186,
-        "days_to_expiry": 34
-      },
-      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
-    },
-    {
-      "severity": "AMBER",
-      "type": "expiry_writeoff_risk",
-      "sku_id": "N05C-01",
-      "region": "DC_DELHI",
-      "facts": {
-        "units_at_risk": 566,
-        "value_inr": 53271,
-        "days_to_expiry": 31
-      },
-      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
-    },
-    {
-      "severity": "AMBER",
-      "type": "expiry_writeoff_risk",
-      "sku_id": "N05C-04",
-      "region": "DC_DELHI",
-      "facts": {
-        "units_at_risk": 571,
-        "value_inr": 49755,
-        "days_to_expiry": 64
-      },
-      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
-    },
-    {
-      "severity": "AMBER",
-      "type": "expiry_writeoff_risk",
-      "sku_id": "N05C-04",
-      "region": "DC_DELHI",
-      "facts": {
-        "units_at_risk": 561,
-        "value_inr": 48826,
-        "days_to_expiry": 49
+        "units_at_risk": 515,
+        "value_inr": 43848,
+        "days_to_expiry": 47
       },
       "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
     },
@@ -568,8 +612,8 @@
       "sku_id": "N05C-04",
       "region": "DC_MUMBAI",
       "facts": {
-        "units_at_risk": 525,
-        "value_inr": 45703,
+        "units_at_risk": 498,
+        "value_inr": 43355,
         "days_to_expiry": 38
       },
       "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
@@ -577,24 +621,12 @@
     {
       "severity": "AMBER",
       "type": "expiry_writeoff_risk",
-      "sku_id": "N05C-03",
-      "region": "DC_MUMBAI",
-      "facts": {
-        "units_at_risk": 528,
-        "value_inr": 44933,
-        "days_to_expiry": 49
-      },
-      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
-    },
-    {
-      "severity": "AMBER",
-      "type": "expiry_writeoff_risk",
       "sku_id": "N05C-04",
-      "region": "DC_MUMBAI",
+      "region": "DC_DELHI",
       "facts": {
-        "units_at_risk": 500,
-        "value_inr": 43557,
-        "days_to_expiry": 40
+        "units_at_risk": 466,
+        "value_inr": 40583,
+        "days_to_expiry": 62
       },
       "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
     },
@@ -604,9 +636,33 @@
       "sku_id": "N05C-03",
       "region": "DC_DELHI",
       "facts": {
-        "units_at_risk": 457,
-        "value_inr": 38903,
-        "days_to_expiry": 68
+        "units_at_risk": 462,
+        "value_inr": 39328,
+        "days_to_expiry": 66
+      },
+      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
+    },
+    {
+      "severity": "AMBER",
+      "type": "expiry_writeoff_risk",
+      "sku_id": "N05C-04",
+      "region": "DC_MUMBAI",
+      "facts": {
+        "units_at_risk": 432,
+        "value_inr": 37625,
+        "days_to_expiry": 36
+      },
+      "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
+    },
+    {
+      "severity": "AMBER",
+      "type": "expiry_writeoff_risk",
+      "sku_id": "N05C-04",
+      "region": "DC_DELHI",
+      "facts": {
+        "units_at_risk": 416,
+        "value_inr": 36257,
+        "days_to_expiry": 47
       },
       "action": "Apply markdown / donate-before-expiry program; no viable transfer destination found by optimizer."
     }
@@ -616,6 +672,6 @@
     "standard_cadence_days": 7,
     "surge_cadence_days": 1,
     "surge_regions": [],
-    "red_alerts": 15
+    "red_alerts": 18
   }
 }

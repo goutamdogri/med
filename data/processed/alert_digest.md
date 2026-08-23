@@ -1,5 +1,7 @@
 Daily Escalation Brief for CSCO
 
-Review Mode is DAILY_SURGE_MODE, indicating immediate focus is required. We face critical shortage risks across multiple locations, with 15 red alerts active today. The most urgent shortages involve SKUs N02BE-01 and R03-03 at WH_INDORE, WH_NAGPUR, WH_COIMBATORE, and WH_LUCKNOW.
+Review Mode: DAILY_SURGE_MODE (1-day cadence).
 
-Specific actions are required immediately to mitigate stockouts and potential writeoffs. We must expedite replenishment for 19449 units of N02BE-01 from WH_INDORE and 22008 units from WH_NAGPUR. Furthermore, initiate transfer requests from metro DCs for critical items like R03-03 to WH_LUCKNOW and WH_COIMBATORE. Prioritize these transfers to reduce critical stockout days.
+Urgent Shortages and Risk: We are facing critical stockout risks across multiple SKUs, totaling 76,038 units. The critical fill rate is at 89.73%, indicating immediate supply chain instability. Key shortages involve N02BE-01 and R03-03/R03-04 across locations like Coimbatore, Indore, Lucknow, and Nagpur. This situation carries a significant writeoff risk of INR 1,150,512.
+
+Actions Required: Immediately expedite replenishment for all RED alerts. Prioritize transfer requests from the metro DC to alleviate stockouts in WH_COIMBATORE and WH_INDORE. We must stabilize these critical supply lines within the next 24 hours.
