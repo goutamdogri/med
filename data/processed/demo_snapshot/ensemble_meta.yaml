@@ -1,0 +1,18 @@
+as_of: '2019-01-15'
+demand_hash: cc64d9c264bed34428625080cfa7b0bb
+ensemble_weights:
+  chronos: 0.255372416973767
+  lgbm: 0.25888501726629637
+  nhits: 0.23673729289062434
+  tft: 0.2490052728693123
+model_wmapes_same_origin:
+  chronos: 0.3989
+  lgbm: 0.3934876502569144
+  nhits: 0.4303
+  tft: 0.4091
+models_used:
+- lgbm
+- tft
+- chronos
+- nhits
+rows: 8064

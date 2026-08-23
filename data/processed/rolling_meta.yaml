@@ -1,0 +1,7 @@
+as_of: '2019-03-01'
+mode: rolling_daily
+models_used:
+- chronos
+- lgbm
+previous_as_of: '2019-01-15'
+rows: 8064

@@ -93,6 +93,22 @@ No retraining is needed to *present* — the dashboard reads saved artifacts. To
 - The original Kaggle dataset is backed up to `data/raw/salesdaily_original_backup.csv` on first install.
 - **Staleness guard**: a fingerprint of the demand table is stored with every ensemble run; if neural forecasts don't match the current data, `ensemble.py` silently falls back to a renormalized LightGBM-only blend instead of serving stale predictions. The retrain orchestrator backs up `data/processed/` and rolls back automatically if any step fails.
 
+### Daily rolling forecast (operations mode)
+
+The forecast window is **42 days** ahead (`config.yaml → simulation.horizon_days`). To produce today's
+forecast from the latest observed data (~2 min — LightGBM refit + Chronos-Bolt zero-shot inference,
+no neural retraining):
+
+```bash
+.venv/bin/python src/rolling_forecast.py                     # origin = last date in demand history
+.venv/bin/python src/rolling_forecast.py --date 2019-02-01   # explicit origin
+```
+
+- Blends LightGBM + Chronos using the stored ensemble weights, applies the same sensing overlay, and overwrites `forecasts_final.parquet` so every dashboard page reflects the live view; `config.yaml` as-of rolls forward automatically.
+- Prints realized WMAPE when future actuals already exist (backtest sanity check).
+- In live ops, first append yesterday's sales (`src/ingest.py updated.csv` or the dashboard upload), then roll.
+- The full demo state is snapshotted to `data/processed/demo_snapshot/` on first roll; `--restore-demo` brings it back exactly (forecasts, plans, alerts, config as-of).
+
 Optional: local Gemma via Ollama for the AI brief (`gemma4:e2b`, configurable in `src/alerts.py`);
 falls back to templated digest automatically if Ollama is down.
 
