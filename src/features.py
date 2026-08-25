@@ -45,7 +45,7 @@ def load_tables() -> dict[str, pd.DataFrame]:
         print(f"[features] MySQL unavailable ({type(exc).__name__}); falling back to parquet")
         return _load_tables_parquet()
 
-
+# The model needs to know on any future forecast date "is there a promo running here?". This grid is the lookup table that answers that.
 def build_promo_grid(dates: pd.DatetimeIndex) -> pd.DataFrame:
     rows = []
     promos = pd.read_parquet(PROCESSED / "promo_calendar.parquet")
@@ -56,6 +56,8 @@ def build_promo_grid(dates: pd.DatetimeIndex) -> pd.DataFrame:
             mask_dates = dates[(dates >= p["start_date"]) & (dates <= p["end_date"])]
             for d in mask_dates:
                 rows.append((d, region, p["uplift"]))
+
+    # If 2 promotion runs, then the uplift occurs because of both promo, so keep only thr max uplift.
     grid = pd.DataFrame(rows, columns=["date", "region", "promo_uplift"])
     return (
         grid.groupby(["date", "region"], as_index=False)["promo_uplift"]
