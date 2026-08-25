@@ -1,6 +1,6 @@
 """
 simulate_ingest_day.py — DEMO helper that mimics the production backend inserting
-a new day of data into pharma_sc.
+a new day of data into medcare.
 
 Each run reveals exactly ONE more day from the pre-generated history
 (data/processed/demand_history.parquet extends beyond what was seeded):
@@ -97,7 +97,7 @@ def roll_inventory_snapshot(engine, day: pd.Timestamp) -> None:
     mu28 = read_sql("""
         SELECT sku_id, region, AVG(units) AS mu FROM (
             SELECT sku_id, region, units FROM demand_history
-            WHERE date > DATE_SUB(:d, INTERVAL 28 DAY) AND date <= :d
+            WHERE date > (:d::date - INTERVAL '28 days') AND date <= :d
         ) t GROUP BY sku_id, region""", {"d": day.date()})
     mu_map = mu28.set_index(["sku_id", "region"])["mu"].to_dict()
 

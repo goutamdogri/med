@@ -68,8 +68,8 @@ def lgbm_forecasts(panel, as_of, tables=None):
 
 
 def ensemble_weights():
-    torch_scores = pd.read_csv(PROCESSED / "backtest_torch.csv")
-    lgb_bt = pd.read_csv(PROCESSED / "backtest_lgbm.csv")
+    torch_scores = pd.read_csv(MODELS / "backtest_torch.csv")
+    lgb_bt = pd.read_csv(MODELS / "backtest_lgbm.csv")
     as_of = str(pd.Timestamp(CFG["project"]["as_of_date"]).date())
     lgb_row = lgb_bt[(lgb_bt["model"] == "lightgbm") & (lgb_bt["origin"] == as_of)]
     scores = dict(zip(torch_scores["model"], torch_scores["wmape_asof_origin"]))
@@ -130,13 +130,16 @@ def apply_sensing(fcst: pd.DataFrame, diag: pd.DataFrame) -> pd.DataFrame:
 
 def demand_fingerprint() -> str:
     import hashlib
-
-    return hashlib.md5((PROCESSED / "demand_history.parquet").read_bytes()).hexdigest()
+    sys.path.insert(0, str(ROOT / "db"))
+    from connection import scalar  # noqa: E402
+    n = scalar("SELECT COUNT(*) FROM demand_history")
+    mx = scalar("SELECT MAX(date)::text FROM demand_history")
+    return hashlib.md5(f"{n}:{mx}".encode()).hexdigest()
 
 
 def torch_forecasts_fresh(as_of: pd.Timestamp) -> bool:
-    sidecar = PROCESSED / "forecasts_torch.meta.json"
-    if not sidecar.exists() or not (PROCESSED / "forecasts_torch.parquet").exists():
+    sidecar = MODELS / "forecasts_torch.meta.json"
+    if not sidecar.exists():
         return False
     import json as _json
 
@@ -158,7 +161,7 @@ def main():
     models_used = ["lgbm"]
 
     if torch_forecasts_fresh(as_of):
-        torch_f = pd.read_parquet(PROCESSED / "forecasts_torch.parquet")
+        torch_f = pd.read_csv(MODELS / "forecasts_torch.csv")
         for m in ["tft", "chronos", "nhits"]:
             sub = torch_f[torch_f["model"] == m][
                 ["sku_id", "region", "forecast_date", "horizon", "p10", "p50", "p90"]
@@ -215,7 +218,7 @@ def main():
         "sense_adjustment",
     ]
     keep = list(dict.fromkeys(keep))
-    merged[keep].to_parquet(PROCESSED / "forecasts_final.parquet", index=False)
+    merged = merged[keep]
 
     summary = {
         "as_of": as_of.date().isoformat(),
@@ -227,7 +230,9 @@ def main():
     }
     import yaml
 
-    (PROCESSED / "ensemble_meta.yaml").write_text(yaml.safe_dump(summary))
+    models_dir = ROOT / "models"
+    models_dir.mkdir(exist_ok=True)
+    (models_dir / "ensemble_meta.yaml").write_text(yaml.safe_dump(summary))
     print(yaml.safe_dump(summary))
 
     actual = panel.set_index(["sku_id", "region", "date"])["units"]
@@ -239,7 +244,7 @@ def main():
     realized_wmape = wmape(truth[mask], merged.loc[mask, "p50"])
     print("ENSEMBLE WMAPE @ as-of origin:", round(realized_wmape, 4))
 
-    # dual-write: push forecasts to MySQL OUTPUT tables
+    # write forecasts to PostgreSQL OUTPUT tables
     try:
         sys.path.insert(0, str(ROOT / "db"))
         import outputs as db_out
@@ -251,7 +256,7 @@ def main():
             len(merged), triggered_by="retrain",
         )
     except Exception as exc:
-        print(f"[ensemble] MySQL write skipped: {type(exc).__name__}: {exc}")
+        print(f"[ensemble] DB write failed: {type(exc).__name__}: {exc}")
 
 
 if __name__ == "__main__":

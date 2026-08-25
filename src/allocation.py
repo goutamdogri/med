@@ -69,8 +69,10 @@ def build_allocation_plan() -> tuple[pd.DataFrame, pd.DataFrame]:
     tables = load_tables()
     inv = tables["inventory_batches"]
     lanes = tables["lanes"]
-    fcst = pd.read_parquet(PROCESSED / "forecasts_final.parquet")
-    repl = pd.read_parquet(PROCESSED / "replenishment_orders.parquet")
+    sys.path.insert(0, str(ROOT / "db"))
+    from inputs import load_forecasts, load_replenishment  # noqa: E402
+    fcst = load_forecasts()
+    repl = load_replenishment()
 
     mu = fcst.groupby(["sku_id", "region"])["p50"].mean()
     inv["days_to_expiry"] = (inv["expiry_date"] - as_of).dt.days
@@ -217,10 +219,8 @@ def build_allocation_plan() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def main():
     transfers, writeoffs, _ = build_allocation_plan()
-    transfers.to_parquet(PROCESSED / "transfer_plan.parquet", index=False)
-    writeoffs.to_parquet(PROCESSED / "writeoff_risk.parquet", index=False)
 
-    # dual-write: push plans to MySQL OUTPUT tables
+    # write plans to PostgreSQL OUTPUT tables
     try:
         sys.path.insert(0, str(ROOT / "db"))
         import outputs as db_out
@@ -229,7 +229,7 @@ def main():
         db_out.write_transfer_plan(transfers, as_of)
         db_out.write_writeoff_risk(writeoffs, as_of)
     except Exception as exc:
-        print(f"[allocation] MySQL write skipped: {type(exc).__name__}: {exc}")
+        print(f"[allocation] DB write failed: {type(exc).__name__}: {exc}")
 
     print(f"transfers planned: {len(transfers)} | units moved: {transfers.qty_units.sum():,.0f}")
     print(f"value rescued: ₹{transfers.value_saved_inr.sum():,.0f}")

@@ -119,7 +119,7 @@ def fit_production(panel, melted, as_of):
     imp = pd.DataFrame(
         {"feature": FEATURES, "gain": model.feature_importances_}
     ).sort_values("gain", ascending=False)
-    imp.to_csv(PROCESSED / "lgbm_feature_importance.csv", index=False)
+    imp.to_csv(MODELS / "lgbm_feature_importance.csv", index=False)
     print("production model trained on", train["cutoff_date"].max(), "| rows:", len(train))
     print(imp.head(10).to_string(index=False))
     return model
@@ -132,7 +132,7 @@ def main():
     melted = melt_horizons(supervised, panel)
 
     bt = run_backtest(panel, supervised, melted)
-    bt.to_csv(PROCESSED / "backtest_lgbm.csv", index=False)
+    bt.to_csv(MODELS / "backtest_lgbm.csv", index=False)
     summary = bt.groupby("model")[
         ["wmape", "wmape_h1_7", "wmape_h8_14", "wmape_h15_21", "wmape_h22_28"]
     ].mean()

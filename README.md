@@ -70,70 +70,229 @@ Tier-2 critical shortages), lanes/lead-times, promo calendar, flu index
   ML is confined to prediction. Judges can audit every number.
 - **Escalation workflow**: weekly S&OP → daily surge mode when sensed uplift > 20% or ≥5 red alerts.
 
-## Run it
+## Quick start
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-./run_all.sh                      # full pipeline (~15 min incl. training)
-.venv/bin/streamlit run app/streamlit_app.py
+cp .env.example .env          # then edit credentials
+./run_all.sh                  # full pipeline from scratch (~15 min incl. training)
 ```
 
-## MySQL-backed operations (production mode)
+## ML Model Operations
 
-All pipeline inputs are read from the **`pharma_sc`** MySQL database and every
-output is dual-written to parquet (dashboard) **and** dedicated `[OUTPUT]`
-tables. The backend inserts new daily rows directly into
-`demand_history`, `disease_burden_index`, `inventory_batches` — no file drops needed.
+The ML pipeline is a **PostgreSQL-backed** service that produces daily demand forecasts, replenishment plans, transfer allocations, and simulation KPIs. It has three operational modes: **monthly retrain** (full model refresh), **daily rollover** (recompute all outputs from latest data), and **live rollover** (fast forecast-only update). All modes are exposed via a **FastAPI sidecar** (port 8000) that the Express backend calls.
 
-### One-time setup
+### Hosting
+
+The ML service runs as a standalone Python process. There are no Docker images — you run it directly on the host or VM.
+
+**Requirements:**
+- Python 3.12+
+- PostgreSQL 14+ (same instance the Express backend uses)
+- ~4 GB RAM (LightGBM + Chronos inference; neural models optional on CPU)
+- GPU optional (N-HiTS/TFT train faster on CUDA but auto-fallback to CPU)
+
+**Start the FastAPI sidecar:**
 
 ```bash
-.venv/bin/pip install pymysql
-MYSQL_ROOT_PWD=<root-password> ./db/setup_db.sh          # creates schema + pharma_user
-cp .env.example .env                                     # then edit credentials
-.venv/bin/python db/db_writer.py --mode seed             # load history up to as-of watermark
-.venv/bin/python db/fill_derived.py --full               # compute [DERIVED] tables from MySQL
+cd medcare_ml_model
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Connection is configured via `PHARMA_DB_URL` (env var or `.env`, git-ignored).
-If MySQL is unreachable the pipeline automatically falls back to `data/processed/` parquet files.
+The sidecar is **stateless** — it spawns pipeline steps as subprocesses and tracks run status in memory. If the process restarts, in-flight runs are lost but completed results persist in PostgreSQL.
 
-### Daily rollover forecast (cron)
+**Environment variables** (set in `.env`, loaded automatically):
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `PHARMA_DB_URL` | Yes | `postgresql://postgres:1828@localhost:5432/medcare` | PostgreSQL connection string |
+| `OPENAI_API_KEY` | No | (template fallback) | LLM key for AI-generated escalation digests |
+
+### FastAPI server — endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health probe → `{"status": "ok"}` |
+| `POST` | `/run/daily` | Trigger daily rollover (returns `run_id` immediately) |
+| `POST` | `/run/retrain` | Trigger monthly retrain (returns `run_id` immediately) |
+| `GET` | `/run/{run_id}/status` | Poll run status: `running` / `completed` / `failed` |
+| `GET` | `/runs` | List last 50 tracked runs |
+
+**Example — trigger and poll a daily rollover:**
 
 ```bash
-./scripts/daily_roll.sh
-# equivalent manual steps:
-.venv/bin/python db/simulate_ingest_day.py               # demo only — backend does this in prod
-.venv/bin/python src/rolling_forecast.py --full-chain --triggered-by cron
-.venv/bin/python db/fill_derived.py
+# trigger
+RUN_ID=$(curl -s -X POST http://localhost:8000/run/daily | jq -r '.run_id')
+echo "run_id: $RUN_ID"
+
+# poll until done
+while true; do
+  STATUS=$(curl -s http://localhost:8000/run/$RUN_ID/status | jq -r '.status')
+  echo "status: $STATUS"
+  [ "$STATUS" != "running" ] && break
+  sleep 3
+done
 ```
 
-One command regenerates the day's forecast → replenishment → transfers →
-simulation → alerts, writing to `forecasts_final`, `replenishment_orders`,
-`transfer_plan`, `writeoff_risk`, `simulation_daily`, `kpi_summary`, `alerts`,
-`alert_digest` and the `rolling_run_log` audit trail — all stamped with today's
-`as_of_date`. Reruns for the same date overwrite cleanly (idempotent).
+**Mutual exclusion:** only one run can execute at a time. If a run is in progress, the second trigger returns `409 Conflict`.
 
-Suggested crontab:
+### Pipeline flows
 
-```cron
-0 6 * * *  cd /path/to/med && ./scripts/daily_roll.sh >> logs/daily.log 2>&1
-0 2 1 * *  cd /path/to/med && ./scripts/monthly_retrain.sh >> logs/monthly.log 2>&1
+#### Flow 1 — Daily rollover forecast (full chain)
+
+**What it does:** Regenerates every output table from the latest demand data. This is the "nightly batch" that keeps the dashboard current.
+
+**Triggered by:**
+- `POST /run/daily` from the Express backend (production)
+- `./scripts/daily_roll.sh` from cron (demo/standalone)
+- `.venv/bin/python src/rolling_forecast.py --full-chain --triggered-by manual` (CLI)
+
+**Flow diagram:**
+
+```
+Backend / Cron / CLI
+        │
+        ▼
+┌─────────────────────────────────────────────────────────┐
+│  rolling_forecast.py --full-chain                       │
+│                                                         │
+│  1. Load tables from PostgreSQL                         │
+│  2. LightGBM refit on data up to as_of (fast, ~10s)     │
+│  3. Chronos-Bolt zero-shot inference (~5s)              │
+│  4. Blend p10/p50/p90 using stored ensemble weights     │
+│  5. Apply sensing overlay (momentum + flu index)        │
+│  6. Write forecasts_final + rolling_run_log to DB       │
+│                                                         │
+│  If --full-chain:                                       │
+│  7. replenishment.py → order-up-to safety stock calc    │
+│  8. allocation.py   → FEFO + expiry-aware transfers     │
+│  9. simulate.py     → 42-day discrete-event sim         │
+│  10. alerts.py      → RED/AMBER rules + AI digest       │
+└─────────────────────────────────────────────────────────┘
+        │
+        ▼
+  PostgreSQL [OUTPUT] tables updated:
+  forecasts_final, replenishment_orders, transfer_plan,
+  writeoff_risk, simulation_daily, kpi_summary, alerts,
+  alert_digest, rolling_run_log
 ```
 
-### Monthly retraining
+**Timing:** ~30 seconds (LightGBM refit + Chronos inference + downstream chain).
+
+**Idempotent:** rerunning for the same `as_of_date` overwrites cleanly (DELETE + INSERT).
+
+**What feeds into it:** the Express backend inserts new daily rows into `demand_history`, `disease_burden_index`, and `inventory_batches`. The ML pipeline reads these tables — no file drops needed.
+
+#### Flow 2 — Monthly retraining (full model refresh)
+
+**What it does:** Retrains all models from scratch, recomputes ensemble weights, then runs the full output chain. This is the "monthly model refresh" that incorporates accumulated new data.
+
+**Triggered by:**
+- `POST /run/retrain` from the Express backend (production)
+- `./scripts/monthly_retrain.sh` from cron (demo/standalone)
+- `.venv/bin/python src/retrain.py` (CLI)
+
+**Flow diagram:**
+
+```
+Backend / Cron / CLI
+        │
+        ▼
+┌─────────────────────────────────────────────────────────┐
+│  retrain.py                                             │
+│                                                         │
+│  1. Set as_of_date to MAX(date) in demand_history       │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Step 1: train_lgbm.py                             │  │
+│  │   - Walk-forward backtest on full demand_history  │  │
+│  │   - Train global LightGBM booster (19 features)   │  │
+│  │   - Save model → models/lgbm_global.txt           │  │
+│  └───────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Step 2: torch_models.py                           │  │
+│  │   - N-HiTS: train on GPU/CPU (~3-5 min)           │  │
+│  │   - TFT: train on GPU/CPU (~5-10 min)             │  │
+│  │   - Chronos-Bolt: zero-shot (no training)         │  │
+│  │   - Backtest all three, save scores               │  │
+│  └───────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Step 3: ensemble.py                               │  │
+│  │   - Recompute weights via inverse-WMAPE           │  │
+│  │   - Save weights → models/ensemble_meta.yaml      │  │
+│  └───────────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Steps 4-7: full output chain                      │  │
+│  │   replenishment → allocation → simulate → alerts  │  │
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  8. fill_derived.py → refresh market_share, demand_sum  │
+│  9. Write retrain_log.json to models/                   │
+└─────────────────────────────────────────────────────────┘
+        │
+        ▼
+  All models + ensemble weights refreshed.
+  All [OUTPUT] tables recomputed.
+```
+
+**Timing:** ~3-5 minutes (GPU) or ~10-15 minutes (CPU-only).
+
+**Variants:**
+```bash
+.venv/bin/python src/retrain.py --skip-torch    # skip neural models (~2 min, CPU-only)
+.venv/bin/python src/retrain.py --rebuild-data  # regenerate synthetic dataset from raw CSV first
+```
+
+**What feeds into it:** reads ALL rows from `demand_history` (not just recent). A month of backend-fed rows is picked up automatically.
+
+#### Flow 3 — Live rollover forecast (fast, forecast-only)
+
+**What it does:** Produces a fresh 42-day forecast window from the latest demand data WITHOUT running the full output chain. This is the "on-demand forecast" that the backend can trigger when a user clicks "Refresh Forecast" or when new data arrives mid-day.
+
+**Triggered by:**
+- `.venv/bin/python src/rolling_forecast.py` (CLI, no `--full-chain`)
+- In production: the backend calls `POST /run/daily` which runs the full chain (forecast is always included)
+
+**Flow diagram:**
+
+```
+CLI (or backend via /run/daily)
+        │
+        ▼
+┌─────────────────────────────────────────────────────────┐
+│  rolling_forecast.py  (without --full-chain)            │
+│                                                         │
+│  1. Load tables from PostgreSQL                         │
+│  2. LightGBM refit on data up to as_of (~10s)           │
+│  3. Chronos-Bolt zero-shot inference (~5s)              │
+│  4. Blend p10/p50/p90 using stored ensemble weights     │
+│  5. Apply sensing overlay (momentum + flu index)        │
+│  6. Write forecasts_final + rolling_run_log to DB       │
+│  7. Print realized WMAPE (backtest check)               │
+└─────────────────────────────────────────────────────────┘
+        │
+        ▼
+  Only forecasts_final + rolling_run_log updated.
+  Replenishment/allocation/simulate NOT recomputed.
+  (Run with --full-chain to include them.)
+```
+
+**Timing:** ~15 seconds (forecast only, no downstream chain).
+
+**When to use:** mid-day refresh when new sales data arrives, or when a user wants to see updated forecasts without waiting for the full chain.
+
+### One-time database setup
 
 ```bash
-./scripts/monthly_retrain.sh            # trains on ALL demand_history in MySQL
-# fast variant:  .venv/bin/python src/retrain.py --skip-torch
-# demo reset:    .venv/bin/python src/retrain.py --rebuild-data   # regenerate synthetic data from raw CSV
+cp .env.example .env                          # edit PHARMA_DB_URL
+.venv/bin/python db/db_writer.py --mode seed  # load historical data into PostgreSQL
+.venv/bin/python db/fill_derived.py --full    # compute derived analytics tables
 ```
 
-The retrain sets the pipeline origin to the newest ingested day, retrains
-LightGBM + neural models, recomputes ensemble weights, reruns the full output
-chain, and refreshes the derived analytics tables (`sku_market_share_monthly`,
-`location_demand_summary`, …). Every stage reads its training data straight
-from MySQL, so a month of backend-fed rows is picked up with zero extra work.
+The schema is defined in `db/schema_postgres.sql` (22 tables). Run it against your PostgreSQL instance:
+```bash
+psql "$PHARMA_DB_URL" -f db/schema_postgres.sql
+```
 
 ### Derived-table refresh intervals
 
@@ -155,7 +314,7 @@ backend so the cron demonstrably advances day by day.
 
 ### Bring your own data
 
-No retraining is needed to *present* — the dashboard reads saved artifacts. To plan on **your own sales history**, use the **📥 Data & Retrain** dashboard page (or CLI):
+No retraining is needed to *present* — the dashboard reads saved artifacts. To plan on **your own sales history**:
 
 ```bash
 .venv/bin/python src/ingest.py path/to/sales.csv    # wide or long CSV, any common date format
@@ -166,28 +325,43 @@ No retraining is needed to *present* — the dashboard reads saved artifacts. To
 - Accepts **wide** CSVs (date + one column per ATC category — Kaggle format) and **long** CSVs (`date, atc_code, units`); SKU-level ids are mapped to their ATC prefix automatically.
 - Validation report flags missing categories, calendar gaps, negative values (<13 months of history degrades year-lag features).
 - The original Kaggle dataset is backed up to `data/raw/salesdaily_original_backup.csv` on first install.
-- **Staleness guard**: a fingerprint of the demand table is stored with every ensemble run; if neural forecasts don't match the current data, `ensemble.py` silently falls back to a renormalized LightGBM-only blend instead of serving stale predictions. The retrain orchestrator backs up `data/processed/` and rolls back automatically if any step fails.
+- **Staleness guard**: a fingerprint of the demand table is stored with every ensemble run; if neural forecasts don't match the current data, `ensemble.py` silently falls back to a renormalized LightGBM-only blend instead of serving stale predictions.
 
-### Daily rolling forecast (operations mode)
+### Suggested crontab
 
-The forecast window is **42 days** ahead (`config.yaml → simulation.horizon_days`). To produce today's
-forecast from the latest observed data (~2 min — LightGBM refit + Chronos-Bolt zero-shot inference,
-no neural retraining):
+```cron
+# Daily rollover at 06:00 (full chain: forecast + replenishment + allocation + sim + alerts)
+0 6 * * *  cd /path/to/medcare_ml_model && ./scripts/daily_roll.sh >> logs/daily.log 2>&1
 
-```bash
-.venv/bin/python src/rolling_forecast.py                     # origin = last date in demand history
-.venv/bin/python src/rolling_forecast.py --date 2019-02-01   # explicit origin
+# Monthly retrain on the 1st at 02:00 (full model refresh)
+0 2 1 * *  cd /path/to/medcare_ml_model && ./scripts/monthly_retrain.sh >> logs/monthly.log 2>&1
 ```
 
-- Blends LightGBM + Chronos using the stored ensemble weights, applies the same sensing overlay, and overwrites `forecasts_final.parquet` so every dashboard page reflects the live view; `config.yaml` as-of rolls forward automatically.
-- Prints realized WMAPE when future actuals already exist (backtest sanity check).
-- In live ops, first append yesterday's sales (`src/ingest.py updated.csv` or the dashboard upload), then roll.
-- The full demo state is snapshotted to `data/processed/demo_snapshot/` on first roll; `--restore-demo` brings it back exactly (forecasts, plans, alerts, config as-of).
+### FastAPI sidecar as a systemd service (production)
 
-Optional: local Gemma via Ollama for the AI brief (`gemma4:e2b`, configurable in `src/alerts.py`);
-falls back to templated digest automatically if Ollama is down.
+```ini
+# /etc/systemd/system/medcare-ml.service
+[Unit]
+Description=MedCare ML Pipeline Sidecar
+After=network.target postgresql.service
 
-GPU optional: N-HiTS/TFT auto-fall back to CPU (TFT trains on CPU in ~10 min here).
+[Service]
+Type=simple
+User=medcare
+WorkingDirectory=/opt/medcare/medcare_ml_model
+EnvironmentFile=/opt/medcare/medcare_ml_model/.env
+ExecStart=/opt/medcare/medcare_ml_model/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now medcare-ml
+```
 
 ## Repo layout
 
@@ -196,8 +370,11 @@ config.yaml            all knobs: seed, network, promos, lead times, service lev
 data/raw               Kaggle CSVs (kagglehub)
 data/processed         generated tables, forecasts, plans, KPIs, alerts
 src/                   pipeline modules (see Architecture) + ingest.py / retrain.py
-app/streamlit_app.py   6-page control tower dashboard
-models/                saved LightGBM booster
+app/main.py            FastAPI sidecar (port 8000) — daily/monthly triggers + run polling
+models/                saved LightGBM booster, ensemble weights, backtest CSVs
+scripts/               cron wrappers (daily_roll.sh, monthly_retrain.sh)
+db/                    PostgreSQL access layer, schema, seed scripts
+docs/                  deep-dive explanations, backend spec, data requirements
 ```
 
 ## Dashboard pages

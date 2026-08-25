@@ -57,14 +57,11 @@ def pd_ts(d) -> str:
 
 
 def run_pipeline(skip_torch: bool = False, rebuild_data: bool = False) -> dict:
-    backup = PROCESSED.parent / f"processed_backup_{time.strftime('%Y%m%d_%H%M%S')}"
-    shutil.copytree(PROCESSED, backup)
-
-    steps = ([BUILD_STEP] if rebuild_data else []) + STEPS
     log = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "steps": {}, "ok": True}
     try:
         if not rebuild_data:
             set_as_of_to_latest_demand()
+        steps = ([BUILD_STEP] if rebuild_data else []) + STEPS
         for name, cmd in steps:
             if skip_torch and name == "torch_models":
                 log["steps"][name] = {"status": "skipped"}
@@ -91,22 +88,19 @@ def run_pipeline(skip_torch: bool = False, rebuild_data: bool = False) -> dict:
         log["steps"][name] = {"status": "done", "secs": dt}
     except Exception as exc:
         print(f"\n[retrain] FAILED: {exc}")
-        print(f"[retrain] rolling back processed artifacts from {backup.name}")
-        shutil.rmtree(PROCESSED)
-        shutil.move(str(backup), str(PROCESSED))
-        log["rollback"] = True
+        log["ok"] = False
     else:
-        shutil.rmtree(backup, ignore_errors=True)
         log["finished"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
-    out = PROCESSED / "retrain_log.json"
+    out = ROOT / "models" / "retrain_log.json"
+    out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps(log, indent=2))
     print(f"\n[retrain] {'OK' if log['ok'] else 'FAILED'} -> {out}")
     return log
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Monthly model retrain (MySQL-backed)")
+    ap = argparse.ArgumentParser(description="Monthly model retrain (PostgreSQL-backed)")
     ap.add_argument("--skip-torch", action="store_true", help="reuse existing NN forecasts")
     ap.add_argument("--rebuild-data", action="store_true",
                     help="regenerate synthetic dataset from raw CSV first (demo reset)")

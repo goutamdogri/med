@@ -1,4 +1,4 @@
-"""Shared MySQL access layer for the pharma_sc pipeline (SQLAlchemy + PyMySQL).
+"""Shared PostgreSQL access layer for the medcare pipeline (SQLAlchemy + psycopg2).
 
 Connection URL resolution order:
   1. PHARMA_DB_URL environment variable
@@ -17,9 +17,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DB_URL = (
-    "mysql+pymysql://pharma_user:pharma_pass@127.0.0.1:3306/pharma_sc?charset=utf8mb4"
-)
+DEFAULT_DB_URL = "postgresql://postgres:1828@localhost:5432/medcare"
 
 
 def _load_dotenv(path: Path) -> None:

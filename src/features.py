@@ -12,43 +12,27 @@ PROCESSED = ROOT / "data" / "processed"
 CFG = yaml.safe_load((ROOT / "config.yaml").read_text())
 
 
-def _load_tables_parquet() -> dict[str, pd.DataFrame]:
-    tables = {}
-    for name in [
-        "demand_history",
-        "sku_master",
-        "locations",
-        "lanes",
-        "distributors",
-        "promo_calendar",
-        "flu_index",
-        "inventory_batches",
-    ]:
-        path = PROCESSED / f"{name}.parquet"
-        if path.exists():
-            tables[name] = pd.read_parquet(path)
-    return tables
-
-
 def load_tables() -> dict[str, pd.DataFrame]:
-    """Primary source: MySQL pharma_sc INPUT/INPUT-ROLLING tables.
-    Falls back to data/processed parquet when the DB is unreachable."""
-    try:
-        sys.path.insert(0, str(ROOT / "db"))
-        from inputs import load_tables_from_db  # noqa: E402
+    """Primary source: PostgreSQL medcare INPUT/INPUT-ROLLING tables."""
+    sys.path.insert(0, str(ROOT / "db"))
+    from inputs import load_tables_from_db  # noqa: E402
 
-        tables = load_tables_from_db()
-        n = len(tables.get("demand_history", pd.DataFrame()))
-        print(f"[features] inputs loaded from MySQL ({n} demand rows)")
-        return tables
-    except Exception as exc:  # pragma: no cover - operational fallback
-        print(f"[features] MySQL unavailable ({type(exc).__name__}); falling back to parquet")
-        return _load_tables_parquet()
+    tables = load_tables_from_db()
+    n = len(tables.get("demand_history", pd.DataFrame()))
+    print(f"[features] inputs loaded from PostgreSQL ({n} demand rows)")
+    return tables
 
 # The model needs to know on any future forecast date "is there a promo running here?". This grid is the lookup table that answers that.
 def build_promo_grid(dates: pd.DatetimeIndex) -> pd.DataFrame:
     rows = []
-    promos = pd.read_parquet(PROCESSED / "promo_calendar.parquet")
+    sys.path.insert(0, str(ROOT / "db"))
+    from inputs import read_sql as db_read_sql  # noqa: E402
+    promos = db_read_sql(
+        "SELECT promo_id, name, start_date, end_date, planned_uplift_pct AS uplift, regions "
+        "FROM promo_calendar WHERE status <> 'cancelled'"
+    )
+    promos["start_date"] = pd.to_datetime(promos["start_date"])
+    promos["end_date"] = pd.to_datetime(promos["end_date"])
     all_regions = [loc["id"] for loc in CFG["locations"]]
     for _, p in promos.iterrows():
         regions = all_regions if p["regions"] == "ALL" else p["regions"].split(",")

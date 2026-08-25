@@ -21,7 +21,9 @@ def service_level(criticality: str) -> float:
 
 def build_replenishment_plan() -> tuple[pd.DataFrame, pd.DataFrame]:
     tables = load_tables()
-    fcst = pd.read_parquet(PROCESSED / "forecasts_final.parquet")
+    sys.path.insert(0, str(ROOT / "db"))
+    from inputs import load_forecasts  # noqa: E402
+    fcst = load_forecasts()
     inv = tables["inventory_batches"]
     skus = tables["sku_master"]
     lanes = tables["lanes"]
@@ -86,16 +88,15 @@ def build_replenishment_plan() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def main():
     plan, inv = build_replenishment_plan()
-    plan.to_parquet(PROCESSED / "replenishment_orders.parquet", index=False)
 
-    # dual-write: push plan to MySQL OUTPUT table
+    # write plan to PostgreSQL OUTPUT table
     try:
         sys.path.insert(0, str(ROOT / "db"))
         import outputs as db_out
 
         db_out.write_replenishment(plan, db_out.current_as_of())
     except Exception as exc:
-        print(f"[replenishment] MySQL write skipped: {type(exc).__name__}: {exc}")
+        print(f"[replenishment] DB write failed: {type(exc).__name__}: {exc}")
 
     print(plan["status"].value_counts())
     print("\ntop orders by value:")

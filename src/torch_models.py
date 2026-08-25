@@ -260,25 +260,30 @@ def main():
     forecasts[["sku_id", "region"]] = forecasts["unique_id"].str.split(
         "|", expand=True
     )
-    import hashlib
-
-    demand_hash = hashlib.md5(
-        (PROCESSED / "demand_history.parquet").read_bytes()
-    ).hexdigest()
-    forecasts.to_parquet(PROCESSED / "forecasts_torch.parquet", index=False)
-    (PROCESSED / "forecasts_torch.meta.json").write_text(
-        json.dumps(
-            {
-                "as_of": str(pd.Timestamp(CFG["project"]["as_of_date"]).date()),
-                "demand_hash": demand_hash,
-                "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
-            },
-            indent=2,
-        )
-    )
 
     scores = score_forecasts(forecasts, panel)
-    scores.to_csv(PROCESSED / "backtest_torch.csv", index=False)
+
+    # write backtest scores + forecasts to models/ for ensemble weight calculation
+    models_dir = ROOT / "models"
+    models_dir.mkdir(exist_ok=True)
+    scores.to_csv(models_dir / "backtest_torch.csv", index=False)
+
+    # save forecasts for ensemble consumption
+    forecasts.to_csv(models_dir / "forecasts_torch.csv", index=False)
+
+    # save meta for freshness check
+    import json as _json
+    import hashlib
+    sys.path.insert(0, str(ROOT / "db"))
+    from connection import scalar  # noqa: E402
+    n = scalar("SELECT COUNT(*) FROM demand_history")
+    mx = scalar("MAX(date)::text FROM demand_history")
+    meta = {
+        "as_of": str(as_of.date()),
+        "demand_hash": hashlib.md5(f"{n}:{mx}".encode()).hexdigest(),
+        "models": list(forecasts["model"].unique()) if "model" in forecasts.columns else [],
+    }
+    (models_dir / "forecasts_torch.meta.json").write_text(_json.dumps(meta))
     print(scores.to_string(index=False))
 
 

@@ -1,5 +1,5 @@
 """
-fill_derived.py — Recomputes the [DERIVED] tables of pharma_sc directly from MySQL.
+fill_derived.py — Recomputes the [DERIVED] tables of medcare directly from PostgreSQL.
 
 Safe to run at any interval (daily / weekly / monthly) — every write is an
 upsert keyed on the table's UNIQUE constraints, so reruns never duplicate rows.
@@ -34,15 +34,15 @@ ALL_TABLES = ["market_share", "demand_summary", "cost_history", "capacity"]
 
 
 def upsert_df(df: pd.DataFrame, table: str, cols: list[str], chunk: int = 1000) -> int:
-    """INSERT ... ON DUPLICATE KEY UPDATE for every column (relies on table UNIQUE keys)."""
+    """INSERT ... ON CONFLICT DO UPDATE for every column (relies on table UNIQUE keys)."""
     if df.empty:
         print(f"  = {table:<28} no rows")
         return 0
     placeholders = ", ".join(f":{c}" for c in cols)
-    updates = ", ".join(f"{c} = new.{c}" for c in cols)
+    updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols)
     stmt = text(
-        f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) AS new "
-        f"ON DUPLICATE KEY UPDATE {updates}"
+        f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) "
+        f"ON CONFLICT DO UPDATE SET {updates}"
     )
     records = df[cols].to_dict(orient="records")
     engine = get_engine()
@@ -72,15 +72,15 @@ def fill_market_share(engine) -> None:
 
     sku_month = read_sql("""
         SELECT sku_id, atc_code,
-               YEAR(date)  AS period_year,
-               MONTH(date) AS period_month,
+               EXTRACT(YEAR FROM date)::int  AS period_year,
+               EXTRACT(MONTH FROM date)::int AS period_month,
                SUM(units)  AS total_units_sold
         FROM demand_history
         GROUP BY sku_id, atc_code, period_year, period_month""")
     cat_month = read_sql("""
         SELECT atc_code,
-               YEAR(date)  AS period_year,
-               MONTH(date) AS period_month,
+               EXTRACT(YEAR FROM date)::int  AS period_year,
+               EXTRACT(MONTH FROM date)::int AS period_month,
                SUM(units)  AS category_units_sold
         FROM demand_history
         GROUP BY atc_code, period_year, period_month""")
@@ -111,13 +111,14 @@ def fill_demand_summary(engine) -> None:
 
     loc_q = read_sql("""
         SELECT region AS location_id,
-               YEAR(date)   AS period_year,
-               QUARTER(date) AS period_quarter,
+               EXTRACT(YEAR FROM date)::int    AS period_year,
+               EXTRACT(QUARTER FROM date)::int AS period_quarter,
                SUM(units)   AS total_units
         FROM demand_history
         GROUP BY region, period_year, period_quarter""")
     nat_q = read_sql("""
-        SELECT YEAR(date) AS period_year, QUARTER(date) AS period_quarter,
+        SELECT EXTRACT(YEAR FROM date)::int AS period_year,
+               EXTRACT(QUARTER FROM date)::int AS period_quarter,
                SUM(units) AS national_total
         FROM demand_history
         GROUP BY period_year, period_quarter""")

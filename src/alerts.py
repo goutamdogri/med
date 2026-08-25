@@ -19,9 +19,11 @@ OLLAMA_MODEL = "gemma4:e2b"
 
 def build_alerts() -> list[dict]:
     tables = load_tables()
-    repl = pd.read_parquet(PROCESSED / "replenishment_orders.parquet")
-    writeoffs = pd.read_parquet(PROCESSED / "writeoff_risk.parquet")
-    fcst = pd.read_parquet(PROCESSED / "forecasts_final.parquet")
+    sys.path.insert(0, str(ROOT / "db"))
+    from inputs import load_replenishment, load_writeoff_risk, load_forecasts  # noqa: E402
+    repl = load_replenishment()
+    writeoffs = load_writeoff_risk()
+    fcst = load_forecasts()
     alerts = []
 
     crit_repl = repl[
@@ -160,7 +162,9 @@ def gemma_digest(alerts: list[dict], kpis: dict, cadence: dict) -> tuple[str, st
 
 
 def main():
-    kpi_df = pd.read_csv(PROCESSED / "kpi_summary.csv")
+    sys.path.insert(0, str(ROOT / "db"))
+    from inputs import load_kpi  # noqa: E402
+    kpi_df = load_kpi()
     proposed_row = kpi_df[kpi_df["policy"] == "proposed"].iloc[0].to_dict()
     sq_row = kpi_df[kpi_df["policy"] == "status_quo"].iloc[0].to_dict()
     kpis = {"proposed": proposed_row, "status_quo": sq_row}
@@ -169,11 +173,7 @@ def main():
     cadence = review_cadence_recommendation(alerts)
     digest, model_used = gemma_digest(alerts, kpis, cadence)
 
-    payload = {"alerts": alerts, "review_cadence": cadence}
-    (PROCESSED / "alerts.json").write_text(json.dumps(payload, indent=2, default=str))
-    (PROCESSED / "alert_digest.md").write_text(digest)
-
-    # dual-write: push alerts + AI digest to MySQL OUTPUT tables
+    # write alerts + AI digest to PostgreSQL OUTPUT tables
     try:
         sys.path.insert(0, str(ROOT / "db"))
         import outputs as db_out
@@ -184,7 +184,7 @@ def main():
             model_used=model_used, as_of_date=db_out.current_as_of(),
         )
     except Exception as exc:
-        print(f"[alerts] MySQL write skipped: {type(exc).__name__}: {exc}")
+        print(f"[alerts] DB write failed: {type(exc).__name__}: {exc}")
 
     print(f"alerts: {len(alerts)} | mode: {cadence['mode']} | surge regions: {cadence['surge_regions']}")
     print("\n--- Gemma digest ---")

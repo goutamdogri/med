@@ -30,9 +30,10 @@ def load_inputs():
     # scenario demand (identical for both policies -> fair comparison).
     missing = horizon_dates.difference(pd.DatetimeIndex(actuals["date"].unique()))
     if len(missing):
-        fcst_path = PROCESSED / "forecasts_final.parquet"
-        if fcst_path.exists():
-            fcst = pd.read_parquet(fcst_path)
+        sys.path.insert(0, str(ROOT / "db"))
+        from inputs import load_forecasts  # noqa: E402
+        fcst = load_forecasts()
+        if len(fcst):
             scen = fcst[fcst["forecast_date"].isin(missing)][
                 ["sku_id", "region", "forecast_date", "p50"]
             ].rename(columns={"forecast_date": "date", "p50": "units"})
@@ -122,7 +123,9 @@ def simulate(policy: str):
     sites, seq_counter = initial_sites(inv)
 
     if policy == "proposed":
-        fcst = pd.read_parquet(PROCESSED / "forecasts_final.parquet")
+        sys.path.insert(0, str(ROOT / "db"))
+        from inputs import load_forecasts, load_transfer_plan  # noqa: E402
+        fcst = load_forecasts()
         mu_tbl = fcst.groupby(["sku_id", "region"])["p50"].mean()
         sigma_tbl = (
             fcst.groupby(["sku_id", "region"])
@@ -161,9 +164,10 @@ def simulate(policy: str):
 
     transfer_in: dict[tuple, list[tuple[int, float]]] = {}
     if policy == "proposed":
-        tp_path = PROCESSED / "transfer_plan.parquet"
-        if tp_path.exists():
-            tp = pd.read_parquet(tp_path)
+        sys.path.insert(0, str(ROOT / "db"))
+        from inputs import load_transfer_plan  # noqa: E402
+        tp = load_transfer_plan()
+        if len(tp):
             for _, t in tp.iterrows():
                 src_list = sites.get(t["from_location"], {}).get(t["sku_id"], [])
                 moved = 0.0
@@ -294,19 +298,17 @@ def main():
         print(f"simulating {policy} ...")
         frames.append(simulate(policy))
     sim = pd.concat(frames, ignore_index=True)
-    sim.to_parquet(PROCESSED / "simulation_daily.parquet", index=False)
 
     k = kpis(sim)
-    k.to_csv(PROCESSED / "kpi_summary.csv", index=False)
 
-    # dual-write: push simulation + KPIs to MySQL OUTPUT tables
+    # write simulation + KPIs to PostgreSQL OUTPUT tables
     try:
         sys.path.insert(0, str(ROOT / "db"))
         import outputs as db_out
 
         db_out.write_simulation(sim, k, db_out.current_as_of())
     except Exception as exc:
-        print(f"[simulate] MySQL write skipped: {type(exc).__name__}: {exc}")
+        print(f"[simulate] DB write failed: {type(exc).__name__}: {exc}")
 
     print(k.to_string(index=False))
 

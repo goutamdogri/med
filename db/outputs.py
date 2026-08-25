@@ -1,12 +1,9 @@
 """
-outputs.py — Writes ML pipeline results into the pharma_sc [OUTPUT] tables.
+outputs.py — Writes ML pipeline results into the medcare [OUTPUT] tables.
 
 Every writer is idempotent per run: rows for the same as_of_date are replaced
 (DELETE + INSERT, or upsert where UNIQUE keys exist), so rerunning any stage
 or a full day never duplicates data.
-
-All stages dual-write: they keep producing parquet/csv/json artifacts for the
-dashboard AND call these functions.
 """
 
 from __future__ import annotations
@@ -83,13 +80,18 @@ def write_run_log(as_of_date, previous_as_of_date, models_used: list[str],
         INSERT INTO rolling_run_log
             (as_of_date, previous_as_of_date, models_used, lgbm_weight, chronos_weight,
              wmape, forecast_rows, status, error_message, run_duration_seconds, triggered_by)
-        VALUES (:d, :pd, :mu, :lw, :cw, :wm, :rows, :st, :err, :dur, :trig) AS new
-        ON DUPLICATE KEY UPDATE
-            previous_as_of_date=new.previous_as_of_date, models_used=new.models_used,
-            lgbm_weight=new.lgbm_weight, chronos_weight=new.chronos_weight,
-            wmape=new.wmape, forecast_rows=new.forecast_rows, status=new.status,
-            error_message=new.error_message, run_duration_seconds=new.run_duration_seconds,
-            triggered_by=new.triggered_by""")
+        VALUES (:d, :pd, :mu, :lw, :cw, :wm, :rows, :st, :err, :dur, :trig)
+        ON CONFLICT (as_of_date) DO UPDATE SET
+            previous_as_of_date = EXCLUDED.previous_as_of_date,
+            models_used = EXCLUDED.models_used,
+            lgbm_weight = EXCLUDED.lgbm_weight,
+            chronos_weight = EXCLUDED.chronos_weight,
+            wmape = EXCLUDED.wmape,
+            forecast_rows = EXCLUDED.forecast_rows,
+            status = EXCLUDED.status,
+            error_message = EXCLUDED.error_message,
+            run_duration_seconds = EXCLUDED.run_duration_seconds,
+            triggered_by = EXCLUDED.triggered_by""")
     params = {
         "d": d,
         "pd": pd.Timestamp(previous_as_of_date).date() if previous_as_of_date else None,
@@ -164,11 +166,12 @@ def write_simulation(sim: pd.DataFrame, kpi: pd.DataFrame, as_of_date) -> tuple[
                 "avg_ending_inventory"]
     # upsert on uq_kpi (as_of_date, policy)
     stmt = text("""
-        INSERT INTO kpi_summary ({cols}) VALUES ({ph}) AS new
-        ON DUPLICATE KEY UPDATE {upd}""".format(
+        INSERT INTO kpi_summary ({cols})
+        VALUES ({ph})
+        ON CONFLICT (as_of_date, policy) DO UPDATE SET {upd}""".format(
         cols=", ".join(kpi_cols),
         ph=", ".join(f":{c}" for c in kpi_cols),
-        upd=", ".join(f"{c}=new.{c}" for c in kpi_cols)))
+        upd=", ".join(f"{c} = EXCLUDED.{c}" for c in kpi_cols)))
     with get_engine().begin() as conn:
         conn.execute(stmt, kpi[kpi_cols].to_dict(orient="records"))
     print(f"  + kpi_summary                 {len(kpi):>7} rows upserted")
@@ -201,11 +204,12 @@ def write_alerts(alerts: list[dict], digest_text: str, review_mode: str,
     }])
     cols = list(digest.columns)
     stmt = text("""
-        INSERT INTO alert_digest ({cols}) VALUES ({ph}) AS new
-        ON DUPLICATE KEY UPDATE {upd}""".format(
+        INSERT INTO alert_digest ({cols})
+        VALUES ({ph})
+        ON CONFLICT (as_of_date) DO UPDATE SET {upd}""".format(
         cols=", ".join(cols),
         ph=", ".join(f":{c}" for c in cols),
-        upd=", ".join(f"{c}=new.{c}" for c in cols)))
+        upd=", ".join(f"{c} = EXCLUDED.{c}" for c in cols)))
     with get_engine().begin() as conn:
         conn.execute(stmt, digest.to_dict(orient="records"))
     print(f"  + alert_digest                as_of={pd.Timestamp(as_of_date).date()} mode={review_mode}")
