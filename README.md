@@ -105,7 +105,7 @@ The sidecar is **stateless** — it spawns pipeline steps as subprocesses and tr
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `PHARMA_DB_URL` | Yes | `postgresql://postgres:1828@localhost:5432/medcare` | PostgreSQL connection string |
+| `PHARMA_DB_URL` | Yes | `postgresql://postgres:<password>@localhost:5432/medcare` | PostgreSQL connection string |
 | `OPENAI_API_KEY` | No | (template fallback) | LLM key for AI-generated escalation digests |
 
 ### FastAPI server — endpoints
