@@ -24,15 +24,20 @@ def _dates(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
 
 
 def get_as_of_date() -> pd.Timestamp:
-    """Canonical pipeline origin = last ingested day of demand."""
-    return pd.Timestamp(scalar("SELECT MAX(date) FROM demand_history"))
+    """Canonical pipeline origin = simulated_today from pipeline_state."""
+    try:
+        return pd.Timestamp(scalar("SELECT simulated_today FROM pipeline_state WHERE id = 1"))
+    except Exception:
+        # Fallback for backward compatibility
+        return pd.Timestamp(scalar("SELECT MAX(date) FROM demand_history"))
 
 
 def load_tables_from_db() -> dict[str, pd.DataFrame]:
     t: dict[str, pd.DataFrame] = {}
 
     t["demand_history"] = _dates(read_sql(
-        "SELECT date, sku_id, atc_code, region, units FROM demand_history"
+        "SELECT date, sku_id, atc_code, region, units FROM demand_history "
+        "WHERE date <= (SELECT simulated_today FROM pipeline_state WHERE id = 1)"
     ), ["date"])
     t["flu_index"] = _dates(read_sql(
         "SELECT record_date AS date, region, index_value AS flu_index "

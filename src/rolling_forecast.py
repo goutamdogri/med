@@ -98,8 +98,23 @@ def main():
 
     t_start = time.time()
     tables = load_tables()
+
+    # Determine as_of date: CLI override > pipeline_state.simulated_today > demand_max
+    sys.path.insert(0, str(ROOT / "db"))
+    from pipeline_state import get_simulated_today  # noqa: E402
+    try:
+        state_date = get_simulated_today()
+    except Exception:
+        state_date = None
+
     demand_max = tables["demand_history"]["date"].max()
-    as_of = pd.Timestamp(args.date) if args.date else demand_max
+    if args.date:
+        as_of = pd.Timestamp(args.date)
+    elif state_date is not None:
+        as_of = state_date
+    else:
+        as_of = demand_max
+
     if as_of > demand_max:
         raise SystemExit(f"origin {as_of.date()} is beyond demand history ({demand_max.date()}); upload newer sales first")
 

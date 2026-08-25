@@ -132,8 +132,18 @@ def demand_fingerprint() -> str:
     import hashlib
     sys.path.insert(0, str(ROOT / "db"))
     from connection import scalar  # noqa: E402
-    n = scalar("SELECT COUNT(*) FROM demand_history")
-    mx = scalar("SELECT MAX(date)::text FROM demand_history")
+    try:
+        n = scalar(
+            "SELECT COUNT(*) FROM demand_history "
+            "WHERE date <= (SELECT simulated_today FROM pipeline_state WHERE id = 1)"
+        )
+        mx = scalar(
+            "SELECT MAX(date)::text FROM demand_history "
+            "WHERE date <= (SELECT simulated_today FROM pipeline_state WHERE id = 1)"
+        )
+    except Exception:
+        n = scalar("SELECT COUNT(*) FROM demand_history")
+        mx = scalar("SELECT MAX(date)::text FROM demand_history")
     return hashlib.md5(f"{n}:{mx}".encode()).hexdigest()
 
 

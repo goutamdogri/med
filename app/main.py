@@ -225,3 +225,48 @@ def list_runs():
         }
         for r in runs
     ]
+
+
+# ─── Callback endpoints (ML project → backend) ─────────────────────────────────
+
+class CallbackBody(BaseModel):
+    as_of: str | None = None
+    status: str = "completed"
+    duration_seconds: float | None = None
+    steps: list[str] = []
+
+
+BACKEND_URL = None  # set via env or None to skip callbacks
+
+
+def _get_backend_url() -> str | None:
+    global BACKEND_URL
+    if BACKEND_URL is None:
+        BACKEND_URL = __import__("os").environ.get("BACKEND_URL")
+    return BACKEND_URL
+
+
+def _notify_backend(path: str, body: dict) -> None:
+    """Best-effort POST to the backend. Never raises."""
+    url = _get_backend_url()
+    if not url:
+        return
+    try:
+        import httpx
+        httpx.post(f"{url}{path}", json=body, timeout=10)
+    except Exception:
+        pass  # callback is best-effort
+
+
+@app.post("/callback/daily-complete")
+def callback_daily_complete(body: CallbackBody):
+    """Called by ML pipeline after daily rollover completes."""
+    _notify_backend("/api/pipeline/rollover-complete", body.model_dump())
+    return {"ok": True}
+
+
+@app.post("/callback/retrain-complete")
+def callback_retrain_complete(body: CallbackBody):
+    """Called by ML pipeline after monthly retrain completes."""
+    _notify_backend("/api/pipeline/retrain-complete", body.model_dump())
+    return {"ok": True}

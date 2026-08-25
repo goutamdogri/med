@@ -31,14 +31,18 @@ BUILD_STEP = ("build_dataset", [PY, str(ROOT / "src" / "build_dataset.py")])
 
 
 def set_as_of_to_latest_demand() -> str | None:
-    """Point config.yaml at the newest ingested day so every stage shares one origin."""
+    """Point config.yaml at simulated_today from pipeline_state so every stage shares one origin."""
     sys.path.insert(0, str(ROOT / "db"))
     from connection import scalar  # noqa: E402
 
     try:
-        latest = scalar("SELECT MAX(date) FROM demand_history")
+        latest = scalar("SELECT simulated_today FROM pipeline_state WHERE id = 1")
     except Exception:
-        return None
+        # Fallback for backward compatibility
+        try:
+            latest = scalar("SELECT MAX(date) FROM demand_history")
+        except Exception:
+            return None
     if latest is None:
         return None
     cfg_path = ROOT / "config.yaml"
