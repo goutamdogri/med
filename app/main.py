@@ -78,6 +78,20 @@ def _run_daily_pipeline(run_id: str) -> None:
     info = _runs[run_id]
     t0 = time.time()
     try:
+        # Step 1: promote simulated_today's data from staging → live tables
+        promo = subprocess.run(
+            [PY, str(ROOT / "db" / "simulate_ingest_day.py")],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if promo.returncode != 0:
+            info.status = "failed"
+            info.error = f"staging promotion failed: {promo.stderr[-500:] if promo.stderr else f'exit code {promo.returncode}'}"
+            return
+
+        # Step 2: full-chain rollover: forecasts → replenishment → transfers → simulation → alerts
         r = subprocess.run(
             [PY, str(ROOT / "src" / "rolling_forecast.py"),
              "--full-chain", "--triggered-by", "api"],
@@ -91,7 +105,7 @@ def _run_daily_pipeline(run_id: str) -> None:
             info.error = r.stderr[-500:] if r.stderr else f"exit code {r.returncode}"
         else:
             info.status = "completed"
-            info.steps_completed = ["forecast", "replenishment", "allocation", "simulation", "alerts"]
+            info.steps_completed = ["staging_promo", "forecast", "replenishment", "allocation", "simulation", "alerts"]
     except subprocess.TimeoutExpired:
         info.status = "failed"
         info.error = "Pipeline timed out after 300s"

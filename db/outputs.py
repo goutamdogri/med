@@ -23,6 +23,15 @@ from sqlalchemy import text  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _reset_seq(table: str) -> None:
+    """Reset identity sequence to avoid PK collisions with seed data."""
+    with get_engine().begin() as conn:
+        conn.execute(text(
+            f"SELECT setval(pg_get_serial_sequence(:t, 'id'), "
+            f"COALESCE((SELECT MAX(id) FROM {table}), 1))"
+        ), {"t": table})
+
+
 def current_as_of() -> pd.Timestamp:
     """Canonical run date: rolled forward by rolling_forecast/ensemble in config.yaml."""
     cfg = yaml.safe_load((ROOT / "config.yaml").read_text())
@@ -105,6 +114,7 @@ def write_run_log(as_of_date, previous_as_of_date, models_used: list[str],
         "dur": int(duration_s) if duration_s is not None else None,
         "trig": triggered_by,
     }
+    _reset_seq("rolling_run_log")
     with get_engine().begin() as conn:
         conn.execute(stmt, params)
     print(f"  + rolling_run_log             as_of={params['d']} status={status}")
@@ -172,6 +182,7 @@ def write_simulation(sim: pd.DataFrame, kpi: pd.DataFrame, as_of_date) -> tuple[
         cols=", ".join(kpi_cols),
         ph=", ".join(f":{c}" for c in kpi_cols),
         upd=", ".join(f"{c} = EXCLUDED.{c}" for c in kpi_cols)))
+    _reset_seq("kpi_summary")
     with get_engine().begin() as conn:
         conn.execute(stmt, kpi[kpi_cols].to_dict(orient="records"))
     print(f"  + kpi_summary                 {len(kpi):>7} rows upserted")
@@ -210,6 +221,7 @@ def write_alerts(alerts: list[dict], digest_text: str, review_mode: str,
         cols=", ".join(cols),
         ph=", ".join(f":{c}" for c in cols),
         upd=", ".join(f"{c} = EXCLUDED.{c}" for c in cols)))
+    _reset_seq("alert_digest")
     with get_engine().begin() as conn:
         conn.execute(stmt, digest.to_dict(orient="records"))
     print(f"  + alert_digest                as_of={pd.Timestamp(as_of_date).date()} mode={review_mode}")

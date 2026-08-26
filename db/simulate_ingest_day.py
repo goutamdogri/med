@@ -31,7 +31,19 @@ from sqlalchemy import text  # noqa: E402
 
 
 def promote_demand(engine, day: pd.Timestamp) -> int:
-    """Promote demand rows for the given day from staging → live."""
+    """Promote demand rows for the given day from staging → live (idempotent)."""
+    # Check if data for this day already exists in live table
+    existing = scalar(
+        "SELECT COUNT(*) FROM demand_history WHERE date = :d",
+        {"d": day.date()},
+    )
+    if existing and existing > 0:
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM demand_history_staging WHERE date = :d"),
+                {"d": day.date()},
+            )
+        return 0
     rows = read_sql(
         "SELECT date, sku_id, atc_code, region, units "
         "FROM demand_history_staging WHERE date = :d",
@@ -40,8 +52,8 @@ def promote_demand(engine, day: pd.Timestamp) -> int:
     if rows.empty:
         return 0
     rows["ingested_at"] = pd.Timestamp.now()
+    # Reset identity sequence before inserting (seed data consumed early IDs)
     n = insert_df(rows, "demand_history")
-    # Delete promoted rows from staging
     with engine.begin() as conn:
         conn.execute(
             text("DELETE FROM demand_history_staging WHERE date = :d"),
@@ -51,7 +63,18 @@ def promote_demand(engine, day: pd.Timestamp) -> int:
 
 
 def promote_flu(engine, day: pd.Timestamp) -> int:
-    """Promote flu/ILI rows for the given day from staging → live."""
+    """Promote flu/ILI rows for the given day from staging → live (idempotent)."""
+    existing = scalar(
+        "SELECT COUNT(*) FROM disease_burden_index WHERE record_date = :d",
+        {"d": day.date()},
+    )
+    if existing and existing > 0:
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM disease_burden_staging WHERE record_date = :d"),
+                {"d": day.date()},
+            )
+        return 0
     rows = read_sql(
         "SELECT record_date, region, index_value "
         "FROM disease_burden_staging WHERE record_date = :d",
@@ -63,21 +86,17 @@ def promote_flu(engine, day: pd.Timestamp) -> int:
     rows["source"] = "IDSP_State_Surveillance"
     rows["source_lag_days"] = 3
     rows["ingested_at"] = pd.Timestamp.now()
-    # Upsert — surveillance rows may already exist
-    from fill_derived import upsert_df
-    upsert_df(rows, "disease_burden_index",
-              ["record_date", "region", "index_value", "index_type",
-               "source", "source_lag_days", "ingested_at"])
+    n = insert_df(rows, "disease_burden_index")
     with engine.begin() as conn:
         conn.execute(
             text("DELETE FROM disease_burden_staging WHERE record_date = :d"),
             {"d": day.date()},
         )
-    return len(rows)
+    return n
 
 
 def promote_inventory(engine, day: pd.Timestamp) -> int:
-    """Promote inventory snapshots where as_of_date matches or is the nearest past weekly snapshot."""
+    """Promote inventory snapshots where as_of_date matches or is the nearest past weekly snapshot (idempotent)."""
     # Find the most recent staging snapshot on or before the day
     snap = scalar(
         "SELECT MAX(as_of_date) FROM inventory_staging WHERE as_of_date <= :d",
@@ -108,7 +127,18 @@ def promote_inventory(engine, day: pd.Timestamp) -> int:
 
 
 def promote_orders(engine, day: pd.Timestamp) -> int:
-    """Promote distributor orders where order_date = day."""
+    """Promote distributor orders where order_date = day (idempotent)."""
+    existing = scalar(
+        "SELECT COUNT(*) FROM distributor_orders WHERE order_date = :d",
+        {"d": day.date()},
+    )
+    if existing and existing > 0:
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM distributor_orders_staging WHERE order_date = :d"),
+                {"d": day.date()},
+            )
+        return 0
     rows = read_sql(
         "SELECT order_id, distributor_id, region, sku_id, atc_code, "
         "order_date, expected_delivery, actual_delivery, ordered_qty, "
@@ -130,7 +160,18 @@ def promote_orders(engine, day: pd.Timestamp) -> int:
 
 
 def promote_capacity(engine, day: pd.Timestamp) -> int:
-    """Promote warehouse capacity snapshot where snapshot_date = day."""
+    """Promote warehouse capacity snapshot where snapshot_date = day (idempotent)."""
+    existing = scalar(
+        "SELECT COUNT(*) FROM warehouse_capacity_log WHERE snapshot_date = :d",
+        {"d": day.date()},
+    )
+    if existing and existing > 0:
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM warehouse_capacity_staging WHERE snapshot_date = :d"),
+                {"d": day.date()},
+            )
+        return 0
     rows = read_sql(
         "SELECT snapshot_date, location_id, capacity_units, used_units, "
         "available_units, utilization_pct, near_expiry_units, sku_count "

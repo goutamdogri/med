@@ -52,10 +52,16 @@ def read_sql(sql: str, params: dict | None = None) -> pd.DataFrame:
 
 
 def insert_df(df: pd.DataFrame, table: str, chunk: int = 1000) -> int:
-    """Append rows to a table."""
+    """Append rows to a table (auto-resets identity sequence if needed)."""
     if df.empty:
         print(f"  = {table:<32} nothing to insert")
         return 0
+    # Reset identity sequence to avoid collisions with seed data
+    with get_engine().begin() as conn:
+        conn.execute(text(
+            f"SELECT setval(pg_get_serial_sequence(:t, 'id'), "
+            f"COALESCE((SELECT MAX(id) FROM {table}), 1))"
+        ), {"t": table})
     df.to_sql(table, con=get_engine(), if_exists="append", index=False,
               method="multi", chunksize=chunk)
     print(f"  + {table:<32} {len(df):>7} rows inserted")
