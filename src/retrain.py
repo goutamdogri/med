@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -49,7 +50,10 @@ def set_as_of_to_latest_demand() -> str | None:
     cfg = yaml.safe_load(cfg_path.read_text())
     prev = cfg["project"]["as_of_date"]
     cfg["project"]["as_of_date"] = str(pd_ts(latest))
-    cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    # Atomic write (temp file + rename) so a crash can't leave corrupt YAML.
+    tmp = cfg_path.with_suffix(".yaml.tmp")
+    tmp.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    os.replace(tmp, cfg_path)
     print(f"[retrain] as-of {prev} -> {cfg['project']['as_of_date']}")
     return prev
 

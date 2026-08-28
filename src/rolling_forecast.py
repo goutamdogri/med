@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -157,7 +158,12 @@ def main():
     cfg = yaml.safe_load(CONFIG.read_text())
     prev_asof = cfg["project"]["as_of_date"]
     cfg["project"]["as_of_date"] = str(as_of.date())
-    CONFIG.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    # Atomic write (temp file + rename) so a crash mid-write can never leave a
+    # truncated/corrupt config.yaml — otherwise the next run's yaml.safe_load()
+    # would fail even though pipeline_state (the real source of truth) is intact.
+    tmp = CONFIG.with_suffix(".yaml.tmp")
+    tmp.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    os.replace(tmp, CONFIG)
 
     actual = panel.set_index(["sku_id", "region", "date"])["units"]
     keys = list(zip(merged["sku_id"], merged["region"], pd.DatetimeIndex(merged["forecast_date"])))
