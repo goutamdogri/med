@@ -264,7 +264,7 @@ def trigger_daily_rollover(body: DailyTriggerBody | None = None):
     return RunResponse(
         run_id=run_id,
         status="running",
-        message="Daily rollover started",
+        message="Forecasting started",
         as_of=body.date,
     )
 

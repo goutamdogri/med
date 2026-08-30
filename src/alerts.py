@@ -1,20 +1,35 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
-import urllib.request
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import yaml
+from groq import Groq
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from features import CFG, PROCESSED, load_tables  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-OLLAMA_URL = "http://localhost:11434/api/chat"
-OLLAMA_MODEL = "gemma4:e2b"
+GROQ_MODEL = "openai/gpt-oss-120b"
+
+
+def _load_dotenv(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        os.environ.setdefault(key.strip(), val.strip())
+
+
+_load_dotenv(ROOT / ".env")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
 
 
 def build_alerts() -> list[dict]:
@@ -107,7 +122,7 @@ def review_cadence_recommendation(alerts: list[dict]) -> dict:
     }
 
 
-def gemma_digest(alerts: list[dict], kpis: dict, cadence: dict) -> tuple[str, str]:
+def groq_digest(alerts: list[dict], kpis: dict, cadence: dict) -> tuple[str, str]:
     """Returns (digest_text, model_used)."""
     facts = {
         "kpi_summary": kpis,
@@ -125,31 +140,33 @@ def gemma_digest(alerts: list[dict], kpis: dict, cadence: dict) -> tuple[str, st
         "expiry risks, and 2-3 concrete actions.\n\nFACTS:\n"
         + json.dumps(facts, indent=1, default=str)
     )
-    body = json.dumps(
-        {
-            "model": OLLAMA_MODEL,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a pharma supply-chain planner writing for the Chief Supply Chain Officer.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "stream": False,
-            "options": {"temperature": 0.2, "num_predict": 1200},
-        }
-    ).encode()
-    try:
-        req = urllib.request.Request(
-            OLLAMA_URL, data=body, headers={"Content-Type": "application/json"}
-        )
-        with urllib.request.urlopen(req, timeout=600) as resp:
-            out = json.loads(resp.read())
-        text = str(out.get("message", {}).get("content", "")).strip()
-        if len(text) > 80:
-            return text, OLLAMA_MODEL
-    except Exception as e:
-        print(f"gemma unavailable ({e}); using template digest")
+    if GROQ_API_KEY:
+        try:
+            client = Groq(api_key=GROQ_API_KEY)
+            completion = client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a pharma supply-chain planner writing for the Chief Supply Chain Officer.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.2,
+                max_completion_tokens=1200,
+                top_p=1,
+                reasoning_effort="medium",
+                stream=False,
+                stop=None,
+            )
+            text = str(completion.choices[0].message.content).strip()
+            if len(text) > 80:
+                return text, GROQ_MODEL
+            print("groq returned an empty digest; using template digest")
+        except Exception as e:
+            print(f"groq unavailable ({e}); using template digest")
+    else:
+        print("GROQ_API_KEY not set; using template digest")
     red = [a for a in alerts if a["severity"] == "RED"]
     lines = [
         f"DAILY ESCALATION BRIEF — mode: {cadence['mode']}",
@@ -171,7 +188,7 @@ def main():
 
     alerts = build_alerts()
     cadence = review_cadence_recommendation(alerts)
-    digest, model_used = gemma_digest(alerts, kpis, cadence)
+    digest, model_used = groq_digest(alerts, kpis, cadence)
 
     # write alerts + AI digest to PostgreSQL OUTPUT tables
     try:
@@ -187,7 +204,7 @@ def main():
         print(f"[alerts] DB write failed: {type(exc).__name__}: {exc}")
 
     print(f"alerts: {len(alerts)} | mode: {cadence['mode']} | surge regions: {cadence['surge_regions']}")
-    print("\n--- Gemma digest ---")
+    print("\n--- Groq digest ---")
     print(digest)
 
 
