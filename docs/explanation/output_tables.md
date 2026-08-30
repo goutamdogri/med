@@ -149,7 +149,7 @@ The **order quantity recommendation** per SKU/region, derived from `forecasts_fi
 
 ### 8. `alert_digest` — `alerts.py`
 
-**AI-generated executive brief** (Gemma LLM / fallback template) summarizing the day's alerts.
+**AI-generated executive brief** (Groq cloud LLM / fallback template) summarizing the day's alerts.
 
 | Field | Type | Description |
 |---|---|---|
@@ -158,7 +158,7 @@ The **order quantity recommendation** per SKU/region, derived from `forecasts_fi
 | `surge_regions` | VARCHAR | Comma-separated surge regions |
 | `red_alert_count` | INT | Number of RED alerts |
 | `digest_text` | TEXT | **LLM-generated escalation brief** |
-| `model_used` | VARCHAR | `gemma4:e2b` or `template_fallback` |
+| `model_used` | VARCHAR | `openai/gpt-oss-120b` or `template_fallback` |
 
 ---
 

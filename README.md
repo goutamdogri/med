@@ -3,30 +3,30 @@
 End-to-end demand planning solution for a pharma distributor facing **flu-season surges (+60%)**,
 **Tier-2 stock-outs of critical SKUs**, and **expiry-driven write-offs stuck in metro DCs**.
 
-Built for the *Demand Sensing & Replenishment* (P1) hackathon problem statement.
+Built for the _Demand Sensing & Replenishment_ (P1) hackathon problem statement.
 
 ---
 
 ## Headline results (42-day forward simulation vs real held-out demand)
 
-| KPI | Status Quo | Proposed | Improvement |
-|---|---|---|---|
-| Fill rate | 81.6% | **91.8%** | +10.2 pts |
-| Critical SKU fill rate | 75.5% | **90.4%** | +14.9 pts |
-| Critical stock-out site-days | 234 | **87** | **−63%** |
-| Expiry write-offs | ₹21.6L | **₹7.7L** | **−₹13.9L (−64%)** |
-| Avg ending inventory (excess proxy) | 3062 | 2477 | −19% |
+| KPI                                 | Status Quo | Proposed  | Improvement        |
+| ----------------------------------- | ---------- | --------- | ------------------ |
+| Fill rate                           | 81.6%      | **91.8%** | +10.2 pts          |
+| Critical SKU fill rate              | 75.5%      | **90.4%** | +14.9 pts          |
+| Critical stock-out site-days        | 234        | **87**    | **−63%**           |
+| Expiry write-offs                   | ₹21.6L     | **₹7.7L** | **−₹13.9L (−64%)** |
+| Avg ending inventory (excess proxy) | 3062       | 2477      | −19%               |
 
 ## Forecast leaderboard — same-origin backtest (192 SKU×region series, 42-day horizon)
 
-| Model | WMAPE | Type |
-|---|---|---|
-| **Ensemble + sensing overlay** | **0.376** | weighted blend |
-| LightGBM (global, direct multi-horizon) | 0.3935 | tabular GBM |
-| Chronos-Bolt-base | 0.3989 | zero-shot foundation model |
-| TFT (trained, covariates) | 0.4091 | PyTorch / neuralforecast |
-| N-HiTS | 0.4303 | PyTorch / neuralforecast |
-| Seasonal-Naive-364 | ~0.55 | baseline |
+| Model                                   | WMAPE     | Type                       |
+| --------------------------------------- | --------- | -------------------------- |
+| **Ensemble + sensing overlay**          | **0.376** | weighted blend             |
+| LightGBM (global, direct multi-horizon) | 0.3935    | tabular GBM                |
+| Chronos-Bolt-base                       | 0.3989    | zero-shot foundation model |
+| TFT (trained, covariates)               | 0.4091    | PyTorch / neuralforecast   |
+| N-HiTS                                  | 0.4303    | PyTorch / neuralforecast   |
+| Seasonal-Naive-364                      | ~0.55     | baseline                   |
 
 Scores shift a point or two between training runs (GPU/CPU nondeterminism); the ensemble has topped every run.
 
@@ -55,7 +55,7 @@ Tier-2 critical shortages), lanes/lead-times, promo calendar, flu index
         │                    + shortage-rescue transfers metro→Tier-2
         ├── simulate.py ─► daily discrete-event sim of both policies
         └── alerts.py ─► RED/AMBER rules + surge-mode cadence switch
-                         + local Gemma-4B (Ollama) escalation narrative
+                         + Groq cloud LLM (openai/gpt-oss-120b) escalation narrative
 ```
 
 ## Key design decisions
@@ -87,6 +87,7 @@ The ML pipeline is a **PostgreSQL-backed** service that produces daily demand fo
 The ML service runs as a standalone Python process. There are no Docker images — you run it directly on the host or VM.
 
 **Requirements:**
+
 - Python 3.12+
 - PostgreSQL 14+ (same instance the Express backend uses)
 - ~4 GB RAM (LightGBM + Chronos inference; neural models optional on CPU)
@@ -103,20 +104,20 @@ The sidecar is **stateless** — it spawns pipeline steps as subprocesses and tr
 
 **Environment variables** (set in `.env`, loaded automatically):
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `PHARMA_DB_URL` | Yes | `postgresql://postgres:<password>@localhost:5432/medcare` | PostgreSQL connection string |
-| `OPENAI_API_KEY` | No | (template fallback) | LLM key for AI-generated escalation digests |
+| Variable         | Required | Default                                                   | Description                                 |
+| ---------------- | -------- | --------------------------------------------------------- | ------------------------------------------- |
+| `PHARMA_DB_URL`  | Yes      | `postgresql://postgres:<password>@localhost:5432/medcare` | PostgreSQL connection string                |
+| `GROQ_API_KEY`   | No       | (template fallback)                                       | Groq API key for AI-generated escalation digests |
 
 ### FastAPI server — endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health` | Health probe → `{"status": "ok"}` |
-| `POST` | `/run/daily` | Trigger daily rollover (returns `run_id` immediately) |
-| `POST` | `/run/retrain` | Trigger monthly retrain (returns `run_id` immediately) |
-| `GET` | `/run/{run_id}/status` | Poll run status: `running` / `completed` / `failed` |
-| `GET` | `/runs` | List last 50 tracked runs |
+| Method | Path                   | Description                                            |
+| ------ | ---------------------- | ------------------------------------------------------ |
+| `GET`  | `/health`              | Health probe → `{"status": "ok"}`                      |
+| `POST` | `/run/daily`           | Trigger daily rollover (returns `run_id` immediately)  |
+| `POST` | `/run/retrain`         | Trigger monthly retrain (returns `run_id` immediately) |
+| `GET`  | `/run/{run_id}/status` | Poll run status: `running` / `completed` / `failed`    |
+| `GET`  | `/runs`                | List last 50 tracked runs                              |
 
 **Example — trigger and poll a daily rollover:**
 
@@ -143,6 +144,7 @@ done
 **What it does:** Regenerates every output table from the latest demand data. This is the "nightly batch" that keeps the dashboard current.
 
 **Triggered by:**
+
 - `POST /run/daily` from the Express backend (production)
 - `./scripts/daily_roll.sh` from cron (demo/standalone)
 - `.venv/bin/python src/rolling_forecast.py --full-chain --triggered-by manual` (CLI)
@@ -188,6 +190,7 @@ Backend / Cron / CLI
 **What it does:** Retrains all models from scratch, recomputes ensemble weights, then runs the full output chain. This is the "monthly model refresh" that incorporates accumulated new data.
 
 **Triggered by:**
+
 - `POST /run/retrain` from the Express backend (production)
 - `./scripts/monthly_retrain.sh` from cron (demo/standalone)
 - `.venv/bin/python src/retrain.py` (CLI)
@@ -238,6 +241,7 @@ Backend / Cron / CLI
 **Timing:** ~3-5 minutes (GPU) or ~10-15 minutes (CPU-only).
 
 **Variants:**
+
 ```bash
 .venv/bin/python src/retrain.py --skip-torch    # skip neural models (~2 min, CPU-only)
 .venv/bin/python src/retrain.py --rebuild-data  # regenerate synthetic dataset from raw CSV first
@@ -250,6 +254,7 @@ Backend / Cron / CLI
 **What it does:** Produces a fresh 42-day forecast window from the latest demand data WITHOUT running the full output chain. This is the "on-demand forecast" that the backend can trigger when a user clicks "Refresh Forecast" or when new data arrives mid-day.
 
 **Triggered by:**
+
 - `.venv/bin/python src/rolling_forecast.py` (CLI, no `--full-chain`)
 - In production: the backend calls `POST /run/daily` which runs the full chain (forecast is always included)
 
@@ -290,6 +295,7 @@ cp .env.example .env                          # edit PHARMA_DB_URL
 ```
 
 The schema is defined in `db/schema_postgres.sql` (22 tables). Run it against your PostgreSQL instance:
+
 ```bash
 psql "$PHARMA_DB_URL" -f db/schema_postgres.sql
 ```
@@ -298,12 +304,12 @@ psql "$PHARMA_DB_URL" -f db/schema_postgres.sql
 
 `db/fill_derived.py` is idempotent — safe at any cadence:
 
-| Table | Cadence | Notes |
-|---|---|---|
-| `sku_market_share_monthly` | daily (cheap full recompute) | pruned to ingested date range |
-| `location_demand_summary` | daily | quarterly share + YoY |
-| `warehouse_capacity_log` | weekly snapshot auto-inserts when ≥7 days of new inventory exist | |
-| `sku_cost_history` | seeded once; `--full` regenerates | |
+| Table                      | Cadence                                                          | Notes                         |
+| -------------------------- | ---------------------------------------------------------------- | ----------------------------- |
+| `sku_market_share_monthly` | daily (cheap full recompute)                                     | pruned to ingested date range |
+| `location_demand_summary`  | daily                                                            | quarterly share + YoY         |
+| `warehouse_capacity_log`   | weekly snapshot auto-inserts when ≥7 days of new inventory exist |                               |
+| `sku_cost_history`         | seeded once; `--full` regenerates                                |                               |
 
 ### Demo day simulator
 
@@ -314,7 +320,7 @@ backend so the cron demonstrably advances day by day.
 
 ### Bring your own data
 
-No retraining is needed to *present* — the dashboard reads saved artifacts. To plan on **your own sales history**:
+No retraining is needed to _present_ — the dashboard reads saved artifacts. To plan on **your own sales history**:
 
 ```bash
 .venv/bin/python src/ingest.py path/to/sales.csv    # wide or long CSV, any common date format

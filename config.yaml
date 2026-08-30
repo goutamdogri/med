@@ -1,6 +1,6 @@
 project:
   seed: 42
-  as_of_date: '2019-01-19'
+  as_of_date: '2019-01-25'
   currency: INR
   volume_scale: 250
 locations:

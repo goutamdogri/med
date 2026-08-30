@@ -223,7 +223,7 @@ Source: `alert_digest` (single row per run):
   "surgeRegions": [],            // split comma string; empty array when null
   "redAlertCount": 17,
   "digestText": "Daily Escalation Brief for CSCO\n\n...",
-  "modelUsed": "gemma4:e2b" }
+  "modelUsed": "openai/gpt-oss-120b" }
 ```
 
 ### 4.14 `GET /api/runs?limit=10`
